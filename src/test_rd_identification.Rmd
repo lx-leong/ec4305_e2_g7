@@ -1,0 +1,167 @@
+---
+title: "Medicare at 65: Employment and Covariate Balance"
+knit: (function(inputFile, ...) { source(file.path(dirname(inputFile), 'knit_without_pandoc.R')); knit_without_pandoc(inputFile) })
+output: html_document
+---
+
+<style>
+body {max-width:1000px;margin:auto;padding:30px;font:16px/1.65 Arial,sans-serif;color:#263746;}
+h1,h2,h3 {color:#17465c;} table {width:100%;border-collapse:collapse;font-size:14px;}
+th,td {padding:8px;border-bottom:1px solid #dde5ea;} th {background:#edf4f7;} img {max-width:100%;}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE,message=FALSE,error=FALSE,
+                      fig.width=9,fig.height=5,dpi=140)
+root <- normalizePath(getwd(),winslash='/',mustWork=TRUE)
+while (!file.exists(file.path(root,'data','nhis_clean_full.csv'))) {
+  parent <- dirname(root)
+  if (identical(parent,root)) stop('Cannot locate project data.')
+  root <- parent
+}
+out <- file.path(root,'output','rd_identification')
+dir.create(out,recursive=TRUE,showWarnings=FALSE)
+d <- read.csv(file.path(root,'data','nhis_clean_full.csv'))
+stopifnot(all(c('year','age4','sawdr','emp','female','wnh','bnh',
+               'hispanic','lowed_clean','region','wt') %in% names(d)))
+d <- subset(d,year %in% 1992:1996 & !is.na(sawdr))
+for(r in 1:3) d[[paste0('region_',r)]] <- ifelse(is.na(d$region),NA,as.integer(d$region==r))
+labels <- c(emp='Employed',female='Female',wnh='White non-Hispanic',
+            bnh='Black non-Hispanic',hispanic='Hispanic',lowed_clean='Below high school',
+            region_1='Region 1',region_2='Region 2',region_3='Region 3')
+stopifnot(all(vapply(d[names(labels)],function(v) all(na.omit(v) %in% 0:1),logical(1))))
+```
+
+## Study and specification
+
+The current file contains **`r format(nrow(d),big.mark=',')` respondents from `r min(d$year)`-`r max(d$year)`**, aged `r min(d$age4,na.rm=TRUE)`-`r max(d$age4,na.rm=TRUE)`. It does not yet cover the proposed 1992-2003 period. Missing doctor-visit outcomes were removed upstream. Other missing outcomes are excluded separately for each test.
+
+We estimate local linear regressions within **five years of 65**, with separate age slopes on either side, survey-year fixed effects, NHIS survey weights and a triangular kernel. Three- and seven-year windows provide sensitivity checks. Bandwidths are fixed in years because age is measured in quarters. Survey-weighted percentages give respondents influence proportional to their population weights; the kernel gives greater influence to ages near 65.
+
+$$Y_i=\alpha+\tau 1(Age_i\ge65)+\beta(Age_i-65)
++\delta 1(Age_i\ge65)(Age_i-65)+\lambda_{year(i)}+\varepsilon_i.$$
+
+The project's primary estimand is the local intention-to-treat effect of Medicare eligibility on seeing a doctor in the past year, with a fuzzy LATE as an extension. Interpreting the age-65 jump as an eligibility effect requires other determinants to remain smooth. Independent retirement incentives at 65 could instead make it a combined effect of turning 65. Medicare-induced retirement can be part of the eligibility effect. Employment is therefore a central diagnostic, although smooth employment alone cannot establish identification.
+
+```{r estimator, include=FALSE}
+fit_rd <- function(y,h=5,cutoff=65,donut=0) {
+  x <- d$age4-cutoff
+  keep <- complete.cases(d[,c(y,'age4','year','wt')]) &
+    is.finite(d[[y]]) & is.finite(x) & is.finite(d$wt) & d$wt>0 &
+    abs(x)<h & abs(x)>=donut
+  z <- d[keep,]; z$x <- x[keep]; z$eligible <- as.integer(z$x>=0)
+  z$y <- z[[y]]; z$w <- (1-abs(z$x)/h)*z$wt/mean(z$wt)
+  f <- lm(y~eligible*x+factor(year),data=z,weights=w)
+  X <- model.matrix(f); n <- nrow(X); k <- ncol(X)
+  if(f$rank<k) stop('Rank-deficient fit: ',y)
+  bread <- solve(crossprod(X,X*z$w))
+  score <- X*as.numeric(z$w*residuals(f))
+  V <- n/(n-k)*bread%*%crossprod(score)%*%bread
+  tau <- unname(coef(f)['eligible']); se <- sqrt(V['eligible','eligible'])
+  crit <- qt(.975,n-k); yr <- aggregate(w~year,z,sum)
+  pred <- function(x,side=as.integer(x>=0)) {
+    side <- rep(side,length.out=length(x))
+    vapply(seq_along(x),function(j) {
+      nd <- data.frame(x=x[j],eligible=side[j],year=yr$year)
+      weighted.mean(predict(f,newdata=nd),yr$w)
+    },numeric(1))
+  }
+  row <- data.frame(outcome=y,bandwidth=h,cutoff=cutoff,donut=donut,
+    estimate=tau,ci_lower=tau-crit*se,ci_upper=tau+crit*se,
+    p_value=2*pt(-abs(tau/se),n-k),n_left=sum(z$x<0),n_right=sum(z$x>=0),
+    below_rate=pred(0,0))
+  list(row=row,predict=pred)
+}
+table_rd <- function(z,name) {
+  tab <- data.frame(Specification=name,
+    `Jump (pp)`=sprintf('%.2f',100*z$estimate),
+    `95% CI (pp)`=sprintf('[%.2f, %.2f]',100*z$ci_lower,100*z$ci_upper),
+    `p-value`=format.pval(z$p_value,digits=3,eps=.001),
+    N=z$n_left+z$n_right,check.names=FALSE)
+  if('p_holm' %in% names(z)) tab$`Holm p-value` <- format.pval(z$p_holm,digits=3,eps=.001)
+  knitr::kable(tab)
+}
+employment <- do.call(rbind,lapply(c(5,3,7),function(h) fit_rd('emp',h)$row))
+e <- employment[1,]
+balance <- do.call(rbind,lapply(setdiff(names(labels),'emp'),function(y) fit_rd(y)$row))
+balance$p_holm <- p.adjust(balance$p_value,'holm')
+checks <- rbind(fit_rd('emp',5,65,.25)$row,
+                fit_rd('emp',3,60)$row,fit_rd('emp',3,70)$row)
+export <- rbind(transform(employment,p_holm=NA_real_),balance,
+                transform(checks,p_holm=NA_real_))
+write.csv(export,file.path(out,'rd_results.csv'),row.names=FALSE)
+```
+
+## Employment at 65
+
+The estimated employment jump is **`r sprintf('%.2f',100*e$estimate)` percentage points**
+(95% CI `r sprintf('[%.2f, %.2f]',100*e$ci_lower,100*e$ci_upper)`;
+p = `r sprintf('%.3f',e$p_value)`). The fitted employment rate immediately below 65 is
+`r sprintf('%.1f%%',100*e$below_rate)`, giving a relative change of
+`r sprintf('%.1f%%',100*e$estimate/e$below_rate)`.
+`r if(e$p_value<.05) 'Employment changes significantly at the cutoff, raising a concern about retirement or other age-65 channels.' else 'There is no statistically significant employment jump in the main specification. The confidence interval nevertheless allows retirement effects that may matter economically.'`
+
+```{r employment-results, results='asis'}
+cat(table_rd(employment,paste0('+/-',employment$bandwidth,' years')),sep='\n')
+```
+
+```{r employment-plot}
+plot_rd <- function(y) {
+  fit <- fit_rd(y)
+  z <- subset(d,is.finite(age4)&is.finite(wt)&wt>0&abs(age4-65)<=5)
+  z <- z[!is.na(z[[y]]),]
+  g <- split(z,z$age4)
+  a <- vapply(g,function(v) v$age4[1],numeric(1))
+  m <- vapply(g,function(v) 100*weighted.mean(v[[y]],v$wt),numeric(1))
+  xl <- seq(-4.99,-.001,length.out=100); xr <- seq(0,4.99,length.out=100)
+  yl <- 100*fit$predict(xl); yr <- 100*fit$predict(xr)
+  plot(a,m,pch=19,col='#718b9a',xlab='Age',ylab='Survey-weighted percentage',
+       main=labels[y],ylim=range(c(m,yl,yr)),bty='l')
+  abline(v=65,lty=2,col='grey55')
+  lines(65+xl,yl,col='#2166AC',lwd=2)
+  lines(65+xr,yr,col='#B2182B',lwd=2)
+}
+plot_rd('emp')
+```
+
+Dots show quarter-age percentages; lines show five-year local fits standardized to the same year distribution on both sides.
+
+## Covariate balance
+
+We check sex, race/ethnicity, below-high-school education and region. Redundant education measures and one indicator from each exhaustive race and region set are omitted. Region codes follow the input data.
+
+```{r balance-results, results='asis'}
+cat(table_rd(balance,unname(labels[balance$outcome])),sep='\n')
+```
+
+Of the `r nrow(balance)` tests, `r sum(balance$p_value<.05)` reject zero at 5% before multiple-testing adjustment and `r sum(balance$p_holm<.05)` after Holm adjustment. These are individual tests, not a joint test or proof of continuity. Education is missing for `r sum(is.na(d$lowed_clean))` respondents in the full sample; that test uses its own available observations.
+
+```{r balance-plots, fig.height=9}
+par(mfrow=c(4,2),mar=c(4,4,3,1))
+for(y in balance$outcome) plot_rd(y)
+par(mfrow=c(1,1))
+```
+
+## Employment robustness
+
+The donut specification excludes observations less than a quarter-year from 65, including those coded exactly 65. Placebos at 60 and 70 use three-year windows that exclude the actual eligibility threshold. These checks concern employment; utilisation robustness is estimated separately.
+
+```{r robustness-results, results='asis'}
+cat(table_rd(checks,c('Donut: exclude |age-65| < 0.25',
+                     'Placebo at 60 (+/-3 years)','Placebo at 70 (+/-3 years)')),sep='\n')
+```
+
+```{r age-histogram, fig.height=4}
+hist(d$age4,breaks=seq(55,75,by=.25),right=FALSE,
+     main='Age distribution by quarter-year',xlab='Age',ylab='Respondents',
+     col='#8ca8b7',border='white')
+abline(v=65,lty=2,col='#B2182B',lwd=2)
+```
+
+## Interpretation
+
+Employment and balance results provide evidence about comparability around 65, conditional on observed doctor-visit responses. They cannot establish continuity of unobserved outcomes or test selection from missing doctor-visit responses. HC1 confidence intervals are approximate: they do not correct smoothing bias, limited quarterly age support, or the full NHIS survey design.
+
+The project's main outcome remains seeing a doctor, with hospital stays secondary and self-rated health excluded. Attribution to Medicare depends on the employment evidence and race-by-education pattern, rather than the cutoff alone. If independent retirement effects remain, the age-65 jump combines Medicare and retirement effects, and a fuzzy estimate rescales that jump. Calling the fuzzy estimate an upper bound additionally requires a positive retirement effect on utilisation, a positive first stage and no offsetting exclusion violations. A fuzzy extension uses one clearly defined first-stage treatment: any insurance measures gaining coverage, while Medicare enrollment also includes insurance switching. Those utilisation and subgroup estimates are outside this employment and balance report.
+
+Card, D., Dobkin, C. and Maestas, N. (2008). [The Impact of Nearly Universal Insurance Coverage on Health Care Utilization: Evidence from Medicare](https://pmc.ncbi.nlm.nih.gov/articles/PMC2600774/). *American Economic Review*, 98(5), 2242-2258.
