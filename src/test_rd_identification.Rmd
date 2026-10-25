@@ -1,18 +1,61 @@
 ---
 title: "Medicare at 65: Employment and Covariate Balance"
-knit: (function(inputFile, ...) { source(file.path(dirname(inputFile), 'knit_without_pandoc.R')); knit_without_pandoc(inputFile) })
-output: html_document
+subtitle: "Continuity checks around the eligibility threshold"
+knit: |
+  (function(inputFile, ...) {
+    candidates <- c(
+      file.path(Sys.getenv('LOCALAPPDATA'), 'Programs', 'Pandoc'),
+      file.path(Sys.getenv('LOCALAPPDATA'), 'Pandoc'),
+      file.path(Sys.getenv('ProgramFiles'), 'Pandoc'),
+      file.path(Sys.getenv('ProgramFiles'), 'RStudio', 'resources',
+                'app', 'bin', 'quarto', 'bin', 'tools')
+    )
+    found <- candidates[file.exists(file.path(candidates, 'pandoc.exe'))]
+    if (length(found)) Sys.setenv(RSTUDIO_PANDOC = found[1])
+    project <- dirname(normalizePath(inputFile, winslash = '/', mustWork = TRUE))
+    while (!file.exists(file.path(project, 'data', 'nhis_clean_full.csv'))) {
+      parent <- dirname(project)
+      if (identical(parent, project)) stop('Cannot locate project data.')
+      project <- parent
+    }
+    destination <- file.path(project, 'output', 'rd_identification')
+    dir.create(destination, recursive = TRUE, showWarnings = FALSE)
+    options <- list(...)
+    options$output_dir <- destination
+    options$intermediates_dir <- tempdir()
+    do.call(rmarkdown::render, c(list(input = inputFile), options))
+  })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    theme: flatly
+    highlight: tango
 ---
 
 <style>
-body {max-width:1000px;margin:auto;padding:30px;font:16px/1.65 Arial,sans-serif;color:#263746;}
-h1,h2,h3 {color:#17465c;} table {width:100%;border-collapse:collapse;font-size:14px;}
-th,td {padding:8px;border-bottom:1px solid #dde5ea;} th {background:#edf4f7;} img {max-width:100%;}
+body {font-family:'Segoe UI',Arial,sans-serif; font-size:16px; line-height:1.75; color:#293b49; background:#fbfcfd;}
+.main-container {max-width:1160px;}
+#header {padding:28px 0 24px; border-bottom:3px solid #267c86; margin-bottom:30px;}
+h1.title {font-size:34px; font-weight:700; letter-spacing:-.8px; color:#143c50;}
+.subtitle {font-size:18px; color:#6b7d88; font-weight:400;}
+h2 {font-size:25px; color:#17465c; margin-top:42px; padding-bottom:10px; border-bottom:1px solid #dde7eb;}
+table {width:100%; border-collapse:collapse; font-size:14px; margin:24px 0!important; background:white;}
+th,td {padding:11px 14px!important; border-bottom:1px solid #e3eaee!important;}
+thead th {background:#edf4f6; color:#17465c; font-weight:600; border-top:0!important;}
+tbody tr:nth-child(even) {background:#f7fafb;}
+.finding {background:#edf6f6; border-left:4px solid #267c86; padding:18px 22px; margin:24px 0; border-radius:0 8px 8px 0;}
+.finding p:last-child {margin-bottom:0;}
+.figure {background:white; padding:12px; margin:24px 0; border:1px solid #e5ecef; border-radius:8px;}
+.caption {color:#687d8a; font-size:13px;}
+img {max-width:100%;}
+@media print {body {background:white;} #TOC {display:none;} .toc-content {width:100%;} }
 </style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=FALSE,message=FALSE,error=FALSE,
-                      fig.width=9,fig.height=5,dpi=140)
+                      fig.width=9,fig.height=5,dpi=160,fig.align='center')
 root <- normalizePath(getwd(),winslash='/',mustWork=TRUE)
 while (!file.exists(file.path(root,'data','nhis_clean_full.csv'))) {
   parent <- dirname(root)
@@ -77,9 +120,9 @@ table_rd <- function(z,name) {
     `Jump (pp)`=sprintf('%.2f',100*z$estimate),
     `95% CI (pp)`=sprintf('[%.2f, %.2f]',100*z$ci_lower,100*z$ci_upper),
     `p-value`=format.pval(z$p_value,digits=3,eps=.001),
-    N=z$n_left+z$n_right,check.names=FALSE)
+    N=format(z$n_left+z$n_right,big.mark=',',trim=TRUE),check.names=FALSE)
   if('p_holm' %in% names(z)) tab$`Holm p-value` <- format.pval(z$p_holm,digits=3,eps=.001)
-  knitr::kable(tab)
+  knitr::kable(tab,align=c('l',rep('r',ncol(tab)-1)))
 }
 employment <- do.call(rbind,lapply(c(5,3,7),function(h) fit_rd('emp',h)$row))
 e <- employment[1,]
@@ -94,6 +137,8 @@ write.csv(export,file.path(out,'rd_results.csv'),row.names=FALSE)
 
 ## Employment at 65
 
+<div class="finding">
+
 The estimated employment jump is **`r sprintf('%.2f',100*e$estimate)` percentage points**
 (95% CI `r sprintf('[%.2f, %.2f]',100*e$ci_lower,100*e$ci_upper)`;
 p = `r sprintf('%.3f',e$p_value)`). The fitted employment rate immediately below 65 is
@@ -101,11 +146,13 @@ p = `r sprintf('%.3f',e$p_value)`). The fitted employment rate immediately below
 `r sprintf('%.1f%%',100*e$estimate/e$below_rate)`.
 `r if(e$p_value<.05) 'Employment changes significantly at the cutoff, raising a concern about retirement or other age-65 channels.' else 'There is no statistically significant employment jump in the main specification. The confidence interval nevertheless allows retirement effects that may matter economically.'`
 
+</div>
+
 ```{r employment-results, results='asis'}
 cat(table_rd(employment,paste0('+/-',employment$bandwidth,' years')),sep='\n')
 ```
 
-```{r employment-plot}
+```{r employment-plot, fig.cap='Employment around age 65. Points are weighted quarter-age means; curves are local linear fits.'}
 plot_rd <- function(y) {
   fit <- fit_rd(y)
   z <- subset(d,is.finite(age4)&is.finite(wt)&wt>0&abs(age4-65)<=5)
@@ -115,11 +162,14 @@ plot_rd <- function(y) {
   m <- vapply(g,function(v) 100*weighted.mean(v[[y]],v$wt),numeric(1))
   xl <- seq(-4.99,-.001,length.out=100); xr <- seq(0,4.99,length.out=100)
   yl <- 100*fit$predict(xl); yr <- 100*fit$predict(xr)
-  plot(a,m,pch=19,col='#718b9a',xlab='Age',ylab='Survey-weighted percentage',
-       main=labels[y],ylim=range(c(m,yl,yr)),bty='l')
-  abline(v=65,lty=2,col='grey55')
-  lines(65+xl,yl,col='#2166AC',lwd=2)
-  lines(65+xr,yr,col='#B2182B',lwd=2)
+  plot(a,m,type='n',xlab='Age',ylab='Survey-weighted percentage',
+       main=labels[y],ylim=range(c(m,yl,yr)),bty='l',
+       col.axis='#637783',col.lab='#344f60',col.main='#17465c')
+  grid(nx=NA,ny=NULL,col='#edf1f3',lty=1)
+  abline(v=65,lty=2,col='#82949f')
+  points(a,m,pch=21,bg='#96adb7',col='white',cex=1.15)
+  lines(65+xl,yl,col='#176d85',lwd=2.5)
+  lines(65+xr,yr,col='#c17948',lwd=2.5)
 }
 plot_rd('emp')
 ```
@@ -136,8 +186,8 @@ cat(table_rd(balance,unname(labels[balance$outcome])),sep='\n')
 
 Of the `r nrow(balance)` tests, `r sum(balance$p_value<.05)` reject zero at 5% before multiple-testing adjustment and `r sum(balance$p_holm<.05)` after Holm adjustment. These are individual tests, not a joint test or proof of continuity. Education is missing for `r sum(is.na(d$lowed_clean))` respondents in the full sample; that test uses its own available observations.
 
-```{r balance-plots, fig.height=9}
-par(mfrow=c(4,2),mar=c(4,4,3,1))
+```{r balance-plots, fig.height=11, fig.cap='Covariate profiles using the main five-year bandwidth.'}
+par(mfrow=c(4,2),mar=c(4,4.5,3,1),cex=.9)
 for(y in balance$outcome) plot_rd(y)
 par(mfrow=c(1,1))
 ```
