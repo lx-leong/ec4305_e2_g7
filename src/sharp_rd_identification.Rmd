@@ -93,7 +93,7 @@ This report checks the design only. **It does not estimate the jump in either ou
 
 **Continuity.** $E[Y_i(0)\mid Age_i=a]$ and $E[Y_i(1)\mid Age_i=a]$ are continuous at $a=65$ (Hahn, Todd and van der Klaauw, 2001; Card, Dobkin and Maestas, 2008).
 
-In words: without the Medicare rule, healthcare use would change smoothly as people pass 65. If anything else jumps at 65, or the people just above 65 differ from those just below, the jump in $Y$ is not Medicare's effect.
+In words: without the Medicare rule, healthcare use would change smoothly as people pass 65. An independent change at 65 that affects healthcare use, or a discontinuous change in sample composition, would threaten attribution solely to Medicare eligibility.
 
 </div>
 
@@ -105,9 +105,9 @@ Continuity involves potential outcomes, so it cannot be tested directly. We test
 - **Local comparability.** People on either side of the cutoff differ in age by a few months.
 - **Eligibility is a strict function of age.** Medicare eligibility begins at 65 for nearly everyone with a work history, so the rule itself does not create selection.
 
-## What "sharp" means in this data
+## Eligibility coding
 
-Age (`age4`) is measured in quarter-years: $(4\times(\text{interview year}-\text{birth year})+\text{interview quarter}-\text{birth quarter})/4$. Eligibility `post65` is exactly $1(age4\ge65)$:
+Age (`age4`) is recorded in quarter-year units. The processed eligibility indicator `post65` is exactly $1(age4\ge65)$; this coding check does not verify each respondent's exact birthday or legal eligibility:
 
 ```{r sharp-check}
 stopifnot(all(d$post65==as.integer(d$age4>=65)))
@@ -123,29 +123,29 @@ knitr::kable(sharp,align='rrrr',row.names=FALSE)
 
 Two features of the data make the cutoff less than perfectly sharp. Both are handled in the estimation report.
 
-1. **The 65.00 cell is only partly treated.** A respondent coded 65.00 was interviewed in their birth quarter, so their true age lies between about 64.75 and 65.25. Roughly half have not turned 65 yet, which is why Medicare coverage in that cell (`r sharp[sharp$Age=='65.00','Medicare coverage']`) sits between the cells either side. Cells 64.75 and below are fully below the cutoff, and 65.25 and above are fully above it. The estimation report runs a donut RD that drops this cell. Coverage also rises in the cells just below 65, probably because Medicare starts on the first day of the birth month and because of reporting error in quarter-based age.
-2. **The outcomes look back 12 months.** `sawdr` and `inhosp` refer to the past year, so someone aged 65.25 has had at most three months of eligibility inside the recall window. The effect should build up between 65 and 66 rather than appear as a clean step. This makes the RD estimate a conservative (attenuated) measure of the effect.
+1. **Quarter-age coding can blur the threshold.** Without exact dates, respondents coded 65.00 may be on either side of their actual birthday. Medicare coverage in this cell is `r sharp[sharp$Age=='65.00','Medicare coverage']`; that rate alone cannot establish how many have actually turned 65. Dropping this cell checks sensitivity to age measurement and enrollment timing. The sharp assignment is to the processed eligibility indicator, not actual enrollment.
+2. **The outcomes look back 12 months.** `sawdr` and `inhosp` include time before eligibility for respondents just above 65. They measure retrospective utilisation, not utilisation entirely after eligibility. This can dilute an immediate response, but does not guarantee attenuation or make the estimate a lower bound. A response that accumulates with exposure may appear as a slope change rather than a level jump.
 
 </div>
 
-## Threats to identification and how we check them
+## Identification threats
 
 | Threat | Why it matters | Check |
 |:--|:--|:--|
-| Different people on each side of 65 | The jump in $Y$ could reflect who they are rather than Medicare | Section 3: covariate balance and a joint covariate index |
+| Different people on each side of 65 | The jump in $Y$ could reflect who they are rather than Medicare | Section 3: covariate balance and an exploratory covariate index |
 | Sorting or heaping in age | Rounding or misreporting could pile respondents onto one side | Section 2: histogram by age quarter |
-| Retirement at 65 (Social Security full retirement age) | Retirement changes income, free time and employer insurance, and could raise doctor visits on its own | Section 4: employment RD, falsification tests, positive control at 62 and a bias bound |
+| Retirement at 65 (Social Security full retirement age) | Retirement changes income, free time and employer insurance, and could raise doctor visits on its own | Section 4: employment RD, falsification tests, positive control at 62 and a sensitivity calculation |
 | Something other than Medicare drives the jump | Attribution to Medicare needs a pattern only Medicare explains | Section 5: subgroup coverage and employment jumps, with a stated prediction |
 | Delaying care until 65, or a partly treated cell | Creates a dip below 65 or blurs the jump | Estimation report: donut RD and placebo cutoffs on the outcomes |
 | Employer coverage becoming secondary to Medicare | Happens *because of* Medicare | Part of the treatment, not a confounder |
 
-## Specification used for every check
+## Specification
 
 All checks use local linear regression within **`r H` years of 65**, with separate age slopes on each side, survey-year fixed effects, NHIS survey weights and a triangular kernel. Alternative bandwidths of `r paste(setdiff(H_alt,H),collapse=', ')` years are reported. The bandwidth is fixed in years rather than chosen by a data-driven rule, because quarterly age gives few distinct values near the cutoff and data-driven selectors can behave badly with so few mass points. Standard errors are heteroskedasticity-robust (HC1).
 
 $$Y_i=\alpha+\tau\,1(Age_i\ge65)+\beta(Age_i-65)+\delta\,1(Age_i\ge65)(Age_i-65)+\lambda_{year(i)}+\varepsilon_i,\qquad |Age_i-65|<h.$$
 
-Each jump is reported in percentage points and relative to the fitted rate just below 65.
+Each jump is reported in percentage points and relative to the fitted rate just below 65. With discrete quarterly age, identification between support points relies on the local trend approximation. HC1 intervals do not correct smoothing bias or account for the full NHIS survey design, so non-rejection is supporting evidence rather than proof of continuity.
 
 ## Data and sample
 
@@ -157,7 +157,7 @@ miss <- data.frame(Variable=miss_vars,
   check.names=FALSE)
 ```
 
-The analysis sample has **`r format(nrow(d),big.mark=',')` respondents from NHIS `r min(d$year)`-`r max(d$year)`**, aged `r min(d$age4)`-`r max(d$age4)`, with `r length(unique(d$age4))` distinct quarter-age values. Of these, `r format(nrow(win),big.mark=',')` are within `r H` years of 65. The cleaned file covers 1992-1996 only, not the 1992-2003 period in the proposal, so it avoids the 1997 NHIS redesign; survey-year fixed effects absorb any remaining changes across years. Respondents with a missing doctor-visit outcome were removed upstream. Other missing values are dropped separately for each test.
+The analysis sample has **`r format(nrow(d),big.mark=',')` respondents from NHIS `r min(d$year)`-`r max(d$year)`**, aged `r min(d$age4)`-`r max(d$age4)`, with `r length(unique(d$age4))` distinct quarter-age values. Of these, `r format(nrow(win),big.mark=',')` are within `r H` years of 65. The cleaned file covers 1992-1996 only, not the 1992-2003 period in the proposal. Survey-year fixed effects absorb additive differences across years, but cannot ensure that any measurement changes are harmless. Respondents with a missing doctor-visit outcome were removed upstream. Other missing values are dropped separately for each test.
 
 ```{r sample-table, results='asis'}
 cat(knitr::kable(miss,align='lrr',row.names=FALSE),sep='\n')
@@ -184,7 +184,7 @@ abline(v=65,lty=2,col='#B2182B',lwd=2)
 
 <div class="finding">
 
-Respondents are spread evenly across age quarters. The 65.00 cell has `r format(counts['65'],big.mark=',')` respondents, `r sprintf('%.2f',ratio65)` times the average of the two cells on either side. Whole-year ages make up `r sprintf('%.1f%%',100*integer_share)` of the sample, against 25% if there were no rounding to whole years. `r if(heap_pass) 'There is no sign of heaping at 65 or of rounding to whole years.' else 'The counts deviate from an even spread and should be investigated before estimation.'` Because nobody can choose their age, any bunching would have pointed to survey reporting problems rather than manipulation.
+Quarter-age counts provide a descriptive check of the recorded age distribution. The 65.00 cell has `r format(counts['65'],big.mark=',')` respondents, `r sprintf('%.2f',ratio65)` times the average of the two cells on either side. Whole-year ages make up `r sprintf('%.1f%%',100*integer_share)` of the sample, against 25% if there were no rounding to whole years. `r if(heap_pass) 'The counts do not trigger these descriptive heaping flags; this is not a formal density test.' else 'The counts deviate from an even spread and should be investigated before estimation.'` Because nobody can choose their age, any bunching would have pointed to survey reporting problems rather than manipulation.
 
 </div>
 
@@ -227,9 +227,9 @@ bh$Covariate <- unname(rd_labels[bh$Covariate])
 cat(knitr::kable(bh,align=c('l',rep('r',length(H_alt))),row.names=FALSE),sep='\n')
 ```
 
-## Joint test: covariate index
+## Exploratory check: covariate index
 
-Separate tests can each miss small imbalances that add up. To combine them, we regress each outcome on all covariates (sex, race/ethnicity, education, region), **using only respondents below 65**, and predict it for everyone. If the covariates are balanced overall, this predicted outcome should not jump at 65. The prediction weights each covariate by how strongly it relates to healthcare use, so the test focuses on the imbalances that would matter. Fitting only below 65 means no post-eligibility outcomes are used, and no jump in the actual outcome is estimated.
+We regress each outcome on the covariates using only respondents below 65, then test for a discontinuity in the predicted outcome. This is an exploratory, outcome-weighted balance diagnostic, not an omnibus joint test: imbalances can cancel in the index. The reported HC1 intervals treat the fitted index weights as fixed and do not account for their estimation. A formal test would require an appropriate joint covariance calculation or inference that also re-estimates the index.
 
 ```{r index}
 index_formula <- ~female+bnh+hispanic+onh+lowed_clean+factor(region)
@@ -284,13 +284,13 @@ cat(table_rd(employment,paste0('+/-',employment$bandwidth,' years')),sep='\n')
 
 <div class="finding">
 
-The employment jump at 65 is **`r pct(e$estimate)` percentage points** (95% CI `r ci(e)`; p = `r pv(e$p_value)`), against a fitted employment rate of `r pct(e$below_rate,1)`% just below 65. That is a relative change of `r pct(e$relative,1)`%. `r if(emp_pass) paste0('There is no significant employment change at 65, and the confidence interval rules out an employment drop larger than ', pct(max(0,-e$ci_lower)), ' pp.') else 'Employment changes significantly at 65, so retirement is a live competing explanation and the bias bound below is central to the interpretation.'` The result is `r if(all(employment$p_value>=.05)) 'insignificant at every bandwidth from 3 to 7 years' else 'not stable across bandwidths; see the table'`.
+The employment jump at 65 is **`r pct(e$estimate)` percentage points** (95% CI `r ci(e)`; p = `r pv(e$p_value)`), against a fitted employment rate of `r pct(e$below_rate,1)`% just below 65. That is a relative change of `r pct(e$relative,1)`%. `r if(emp_pass) paste0('There is no statistically significant employment jump at 65, and the HC1 interval excludes, under this specification, an employment drop larger than ', pct(max(0,-e$ci_lower)), ' pp.') else 'Employment changes significantly at 65, so retirement is a live competing explanation and the sensitivity scenario below is relevant to interpretation.'` The result is `r if(all(employment$p_value>=.05)) 'insignificant at every bandwidth from 3 to 7 years' else 'not stable across bandwidths; see the table'`.
 
 </div>
 
 ## Falsification tests
 
-The donut drops the partly treated 65.00 cell. The placebo cutoffs at 60 and 70 use two-year windows, which keep each window clear of both 62 and 65.
+The donut drops the potentially misclassified 65.00 cell. The placebo cutoffs at 60 and 70 use two-year windows, which keep each window clear of both 62 and 65.
 
 ```{r falsify-table, results='asis'}
 cat(table_rd(falsify,c('Donut: drop the 65.00 cell (+/-5 years)',
@@ -299,7 +299,7 @@ cat(table_rd(falsify,c('Donut: drop the 65.00 cell (+/-5 years)',
 
 ## Positive control: age 62
 
-The placebos show the test does not find jumps where none should exist. They do not show it *can* find a real one. Age 62 is the earliest age for claiming Social Security, and many people retire then, so an employment drop is expected there. Finding a drop at 62 but not at 65 shows the method can detect retirement discontinuities and that one is absent at 65.
+The placebos check for employment jumps at alternative cutoffs. Age 62, the earliest Social Security retirement-benefit claiming age, provides a positive control. Detecting a decline there shows that the specification can detect that particular change; it does not establish equal power at 65 or prove that a retirement discontinuity is absent there.
 
 ```{r control62-plot, fig.cap='Employment around age 62 (two-year window), where early Social Security claiming begins.'}
 plot_rd(d,'emp',2,62,main='Employment around 62',fit=control62)
@@ -315,13 +315,13 @@ At 62, employment changes by **`r pct(c62$estimate)` pp** (95% CI `r ci(c62)`; p
 
 </div>
 
-## How much bias could retirement cause?
+## Retirement sensitivity scenario
 
-An insignificant estimate does not mean zero. To put an upper limit on the bias, take the largest employment drop the confidence interval allows and multiply it by the gap in healthcare use between people who are not working and people who are, measured among respondents aged 60-64.75:
+As a sensitivity scenario, multiply the magnitude of the negative endpoint of the employment confidence interval (or zero if positive) by the absolute utilisation gap between non-workers and workers aged 60-64.75:
 
-$$\text{max bias} = \underbrace{\max(0,-\text{CI}_{lower})}_{\text{largest plausible employment drop}}\times\underbrace{(\bar Y_{\text{not employed}}-\bar Y_{\text{employed}})}_{\text{gap below 65}}.$$
+$$\text{scenario magnitude}=\max(0,-\text{CI}_{lower})\times\left|\bar Y_{\text{not employed}}-\bar Y_{\text{employed}}\right|.$$
 
-This is a descriptive comparison below the cutoff, not an RD estimate. It overstates the causal effect of retirement, because people out of work tend to be in worse health, which makes the bound conservative.
+This is not an identified causal upper bound. Non-employment is not the same as retirement, the descriptive utilisation gap need not bound retirement's causal effect, and offsetting employment changes can conceal gross retirement flows. The calculation also omits uncertainty in that gap. Its interpretation requires assuming that the employment jump captures the relevant retirement change and that the observed gap is a suitable effect size. The export retains the legacy column name `max_bias` for compatibility with the estimation report.
 
 ```{r bias-bound}
 pre <- subset(d,age4>=60 & age4<65)
@@ -338,19 +338,19 @@ bound <- do.call(rbind,lapply(c('sawdr','inhosp'),function(y) {
 cat(knitr::kable(data.frame(Outcome=unname(rd_labels[bound$outcome]),
   `Largest employment drop (pp)`=pct(bound$emp_drop_max),
   `Gap: not employed minus employed (pp)`=pct(bound$gap),
-  `Maximum retirement bias (pp)`=pct(bound$max_bias),check.names=FALSE),
+  `Scenario magnitude (pp)`=pct(bound$max_bias),check.names=FALSE),
   align='lrrr',row.names=FALSE),sep='\n')
 ```
 
 <div class="finding">
 
-Even under these conservative assumptions, retirement could account for at most **`r pct(bound$max_bias[1])` pp** of any jump in doctor visits at 65 and **`r pct(bound$max_bias[2])` pp** of any jump in hospital stays. The estimation report compares these bounds with the estimated jumps.
+Under this scenario, the implied magnitudes are **`r pct(bound$max_bias[1])` pp** for doctor visits and **`r pct(bound$max_bias[2])` pp** for hospital stays. These figures describe sensitivity under the stated assumptions; they do not rule out larger retirement effects.
 
 </div>
 
 # Check 4: subgroup pattern
 
-The employment RD tests retirement directly. The subgroup pattern gives a second, independent test of attribution. If Medicare drives the jump in healthcare use, groups whose Medicare coverage jumps more at 65 should show larger jumps in use. If retirement drove it, the jumps in use should instead follow the jumps in employment. We use the four race × education groups (`group`) and Medicare coverage (`mcare`), the project's first-stage variable.
+The employment RD tests retirement directly. The subgroup pattern provides complementary, descriptive evidence about attribution. Under the additional assumption that effects per induced enrollee are similar across groups, larger Medicare coverage jumps predict larger utilisation jumps. Heterogeneous benefits and insurance generosity can break this ranking even when Medicare matters. If retirement drove it, the jumps in use should instead follow the jumps in employment. We use the four race × education groups (`group`) and Medicare coverage (`mcare`), the project's first-stage variable.
 
 This section estimates only the coverage and employment jumps by group, and states the prediction **before** the outcome jumps are estimated. The estimation report tests it.
 
@@ -397,7 +397,7 @@ par(mfrow=c(1,1))
 
 <div class="finding">
 
-**Prediction for the estimation report.** If Medicare drives the effect, the jumps in doctor visits and hospital stays should be largest for **`r predicted[1]`** and smallest for **`r predicted[4]`**, following the Medicare coverage jumps (`r paste(predicted,collapse=' > ')`). `r if(all(sub$emp_p>=.05)) 'No group shows a significant employment jump at 65, so retirement offers no competing reason for the outcome jumps to differ across groups.' else paste0('Employment jumps significantly for: ', paste(sub$label[sub$emp_p<.05],collapse=', '), '. If outcome jumps follow the employment ranking rather than the coverage ranking, retirement is the more likely explanation.')`
+**Prediction for the estimation report.** If Medicare drives the effect, the jumps in doctor visits and hospital stays should be largest for **`r predicted[1]`** and smallest for **`r predicted[4]`**, following the Medicare coverage jumps (`r paste(predicted,collapse=' > ')`). `r if(all(sub$emp_p>=.05)) 'No group shows a significant employment jump at 65, although the confidence intervals do not exclude retirement differences across groups.' else paste0('Employment jumps significantly for: ', paste(sub$label[sub$emp_p<.05],collapse=', '), '. If outcome jumps follow the employment ranking rather than the coverage ranking, that would be consistent with a retirement channel but would not establish it.')`
 
 </div>
 
@@ -407,13 +407,13 @@ uninsured_order <- sub$label[order(-sub$pre_uninsured)]
 
 <div class="caution">
 
-**Reading the prediction.** Medicare coverage jumps include people *switching* from other insurance, not only people *gaining* insurance. Ranked by the share uninsured before 65, the order is `r paste(uninsured_order,collapse=' > ')`, `r if(identical(uninsured_order,rev(predicted))) 'the exact reverse of' else 'different from'` the Medicare-jump order. The two orders separate two channels. If outcome jumps follow the Medicare order, the effect works through Medicare coverage generally, including more generous coverage for people who were already insured. If they follow the uninsured order, it works mainly through newly gaining insurance. Either way, a pattern that follows employment instead would point to retirement. Confidence intervals for the Medicare jumps overlap for some groups, so only clear differences between groups should be interpreted.
+**Reading the prediction.** Medicare coverage jumps include people *switching* from other insurance, not only people *gaining* insurance. Ranked by the share uninsured before 65, the order is `r paste(uninsured_order,collapse=' > ')`, `r if(identical(uninsured_order,rev(predicted))) 'the exact reverse of' else 'different from'` the Medicare-jump order. The two orders suggest different possible channels. Alignment with either ranking would be consistent with the corresponding channel, but four subgroup comparisons cannot separate insurance, retirement and heterogeneous treatment effects causally. Confidence intervals for the Medicare jumps overlap for some groups, so only clear differences between groups should be interpreted.
 
 </div>
 
 # Summary
 
-## Scorecard
+## Diagnostic summary
 
 ```{r scorecard, results='asis'}
 score <- data.frame(
@@ -426,35 +426,41 @@ score <- data.frame(
   Result=c(sprintf('65.00 cell is %.2f times its neighbours; %.1f%% whole-year ages',ratio65,100*integer_share),
            sprintf('%d of %d significant after Holm',sum(balance$p_holm<.05),nrow(balance)),
            sprintf('Doctor visits %s pp (p = %s); hospital %s pp (p = %s)',pct(index$estimate[1]),pv(index$p_value[1]),pct(index$estimate[2]),pv(index$p_value[2])),
-           sprintf('%s pp, CI %s, p = %s; max bias %s pp',pct(e$estimate),ci(e),pv(e$p_value),pct(bound$max_bias[1])),
+           sprintf('%s pp, CI %s, p = %s; scenario %s pp',pct(e$estimate),ci(e),pv(e$p_value),pct(bound$max_bias[1])),
            sprintf('%d of 3 significant',sum(falsify$p_value<.05)),
            sprintf('%s pp, p = %s',pct(c62$estimate),pv(c62$p_value)),
            paste('Predicted order:',paste(predicted,collapse=' > '))),
-  Verdict=c(ifelse(heap_pass,'Pass','Investigate'),
-            ifelse(all(balance$p_holm>=.05),'Pass','Investigate'),
-            ifelse(index_pass,'Pass','Investigate'),
-            ifelse(emp_pass,'Pass','Concern'),
-            ifelse(all(falsify$p_value>=.05),'Pass','Investigate'),
-            ifelse(c62$p_value<.05 && c62$estimate<0,'Drop detected','Low power'),
+  Verdict=c(ifelse(heap_pass,'No flag by descriptive rule','Investigate'),
+            ifelse(all(balance$p_holm>=.05),'No rejection','Investigate'),
+            ifelse(index_pass,'No rejection','Investigate'),
+            ifelse(emp_pass,'No rejection','Concern'),
+            ifelse(all(falsify$p_value>=.05),'No rejection','Investigate'),
+            ifelse(c62$p_value<.05 && c62$estimate<0,'Drop detected','Drop not detected'),
             'Tested in estimation report'),
   check.names=FALSE)
 cat(knitr::kable(score,align='llll',row.names=FALSE),sep='\n')
 ```
 
-## What remains assumed
+## Remaining assumptions
 
 These checks support continuity but cannot prove it. Three things remain assumptions:
 
 - **Unobserved characteristics are smooth at 65.** Balance in sex, race, education and region does not guarantee balance in, for example, health status or income.
-- **Small retirement effects.** The employment confidence interval does not rule out small changes. The bias bound limits how much they could matter.
+- **Small retirement effects.** The employment confidence interval does not rule out small changes. The sensitivity scenario illustrates a possible magnitude but does not bound the effect.
 - **Selection into the doctor-visit sample.** Respondents with a missing doctor-visit answer were removed before this analysis, so we cannot test whether that missingness changes at 65.
 
-## What the estimation report needs from this one
+### SUTVA and interference
+
+SUTVA requires a well-defined treatment and no interference between individuals. Treatment is eligibility under the age-65 Medicare policy, rather than enrollment in a particular insurance plan. Gaining insurance, switching plans and obtaining supplemental coverage are responses included in the overall eligibility ITT; these differences do not themselves violate the assumption.
+
+SUTVA cannot be directly verified with these data. Observing a respondent's insurance and healthcare use does not reveal how their utilisation would change if someone else's eligibility changed while their own eligibility stayed fixed. Household links and spouse ages could support an indirect check for spousal spillovers, but those variables are absent from the processed file. We therefore maintain no-interference as an assumption. Household insurance decisions and provider behaviour could create spillovers; for the local RD comparison, we assume that exposure to these effects varies smoothly with the respondent's own age around 65. Smooth spillovers need not produce a discontinuity, but do not establish strict no-interference or guarantee an interpretation solely in terms of the individual's own eligibility.
+
+## Estimation inputs
 
 - **Specification:** local linear, `r H`-year main bandwidth, alternatives of `r paste(setdiff(H_alt,H),collapse=', ')` years, triangular kernel, survey-year fixed effects, survey weights, HC1 standard errors (shared through `rd_functions.R`).
-- **Retirement bias bounds:** `r pct(bound$max_bias[1])` pp for doctor visits and `r pct(bound$max_bias[2])` pp for hospital stays.
+- **Retirement sensitivity scenario:** `r pct(bound$max_bias[1])` pp for doctor visits and `r pct(bound$max_bias[2])` pp for hospital stays.
 - **Subgroup prediction:** outcome jumps should follow the Medicare coverage order `r paste(predicted,collapse=' > ')`.
-- **Donut RD:** drop the partly treated 65.00 cell. A wider donut (64.75-65.25) addresses people delaying care until 65. The 12-month recall window means the estimate is likely attenuated.
+- **Donut RD:** drop the potentially misclassified 65.00 cell. A wider donut (64.75-65.25) addresses people delaying care until 65. The recall window complicates interpretation; attenuation is not guaranteed.
 
 ```{r export}
 export <- rbind(

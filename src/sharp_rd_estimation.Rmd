@@ -78,7 +78,6 @@ ci <- function(r) sprintf('[%s, %s]',pct(r$ci_lower),pct(r$ci_upper))
 ```
 
 ```{r estimates, include=FALSE}
-# Every specification, labelled by check, for both outcomes.
 run <- function(y,check,spec,data=d,...) cbind(check=check,spec=spec,fit_rd(data,y,...)$row)
 d_cov <- d[complete.cases(d[,covars]),]
 below <- subset(d,age4<65)
@@ -125,7 +124,7 @@ $$Y_i=\alpha+\tau\,1(Age_i\ge65)+\beta(Age_i-65)+\delta\,1(Age_i\ge65)(Age_i-65)
 
 The sample is `r format(nrow(d),big.mark=',')` respondents from NHIS `r min(d$year)`-`r max(d$year)`, of whom `r format(m1$n_left+m1$n_right,big.mark=',')` are within `r H` years of 65.
 
-## What the identification report established
+## Identification evidence
 
 Age shows no heaping at 65. Sex, race/ethnicity, education and region are balanced at the cutoff, individually and as a combined index. Employment does not drop at 65, while the same test does detect the retirement drop at 62. Two features of the data matter here: the 65.00 age cell is only partly eligible, and both outcomes look back 12 months, so the effect should build up between 65 and 66. Sections 4 and 5 below address both.
 
@@ -153,7 +152,7 @@ cat(table_rd(main,main$label),sep='\n')
 
 </div>
 
-# Can retirement explain the jump?
+# Retirement sensitivity
 
 The identification report found no employment drop at 65. To allow for a drop too small to detect, it computed the largest jump in each outcome that retirement could produce: the largest employment drop consistent with the employment confidence interval, multiplied by the gap in healthcare use between non-workers and workers aged 60-64.75. That gap overstates the causal effect of retirement, because people who stop working tend to be less healthy, so the bound is conservative.
 
@@ -270,7 +269,7 @@ for(y in outcomes) {
 par(mfrow=c(1,1),oma=c(0,0,0,0))
 ```
 
-# Is it Medicare? The subgroup test
+# Subgroup comparisons
 
 The identification report estimated, for four race × education groups, how much Medicare coverage and employment jump at 65, and stated a prediction before seeing the outcome results. If Medicare drives the effect, the outcome jumps should be largest in the groups with the largest Medicare coverage jump. If the effect comes mainly from newly gaining insurance, they should follow the share uninsured before 65 instead. If retirement drove it, they would follow the employment jumps; but no group's employment changed significantly at 65.
 
@@ -327,7 +326,7 @@ for(y in outcomes) {
 par(mfrow=c(1,1))
 ```
 
-## Which pattern do the outcomes follow?
+## Comparison of subgroup patterns
 
 The rank correlations below describe how closely the ordering of outcome jumps matches each measure, from -1 (reversed) to 1 (identical). With four groups they are descriptive, not tests. The formal test compares the two groups at either end of both rankings: white high-education and minority low-education people.
 
@@ -358,7 +357,7 @@ n_rob <- tapply(same$p_value,same$outcome,length)
 
 <div class="finding">
 
-**Claim.** Turning 65 `r if(m1$estimate>=0) 'raises' else 'lowers'` the probability of having seen a doctor in the past year by **`r pct(abs(m1$estimate))` percentage points** (95% CI `r ci(m1)`), from `r pct(m1$below_rate,1)`% just below 65, a `r pct(abs(m1$relative),1)`% relative change`r if(m1$p_value>=.05) ', although this estimate is not statistically different from zero at 5%' else ''`. This is the intention-to-treat effect of Medicare eligibility for people near 65. The effect on hospital stays is `r pct(m2$estimate)` pp (95% CI `r ci(m2)`; p = `r pv(m2$p_value)`).
+**Main estimate.** Turning 65 `r if(m1$estimate>=0) 'raises' else 'lowers'` the probability of having seen a doctor in the past year by **`r pct(abs(m1$estimate))` percentage points** (95% CI `r ci(m1)`), from `r pct(m1$below_rate,1)`% just below 65, a `r pct(abs(m1$relative),1)`% relative change`r if(m1$p_value>=.05) ', although this estimate is not statistically different from zero at 5%' else ''`. This is the intention-to-treat effect of Medicare eligibility for people near 65. The effect on hospital stays is `r pct(m2$estimate)` pp (95% CI `r ci(m2)`; p = `r pv(m2$p_value)`).
 
 **Robustness.** Across bandwidths, functional form, covariates, donuts and the full-exposure check, the doctor-visit estimate keeps `r if(stable['sawdr']) 'the same sign in every specification' else 'the same sign in most but not all specifications'` and is significant in `r sig_rob['sawdr']` of `r n_rob['sawdr']`.
 

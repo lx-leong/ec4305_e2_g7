@@ -15,7 +15,6 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
 ```
 
 ```{r}
-## load libraries 
 library(haven)
 library(dplyr)
 library(tidyr)
@@ -23,12 +22,10 @@ library(ggplot2)
 ```
 
 ```{r}
-## read data 
 df_raw <- read_sas("https://raw.githubusercontent.com/lx-leong/ec4305_e2_g7/main/data/c9203.sas7bdat")
 ```
 
 ```{r}
-# Standardise variable names to lowercase
 names(df_raw) <- tolower(names(df_raw))
 
 dim(df_raw)
@@ -37,18 +34,15 @@ summary(df_raw)
 head(df_raw)
 ```
 ```{r}
-## check for year and age
 table(df_raw$year)
 range(df_raw$age4, na.rm = TRUE)
 
-# check for data of post 65 and not post 65
 with(
   df_raw,
   table(post65, age4 >= 65, useNA = "ifany")
 )
 ```
 ```{r}
-## survey weights 
 summary(df_raw$wt)
 sum(df_raw$wt == 0, na.rm = TRUE) ## are there any 0 weights
 sum(is.na(df_raw$wt)) ## check for na 
@@ -56,8 +50,6 @@ sum(is.na(df_raw$wt)) ## check for na
 ```
 
 ```{r}
-## check values of binary variables 
-## Check all relevant binary variables
 binary_vars <- c(
   "post65", "mcare", "covered2",
   "sawdr", "inhosp", "goodplus", "poor",
@@ -65,18 +57,14 @@ binary_vars <- c(
   "lowed", "emp"
 )
 
-# Expected values: 0, 1 or NA
 lapply(df_raw[binary_vars], table, useNA = "ifany")
 ```
 ```{r}
-## Education: inspect years of schooling and missing values
 summary(df_raw$educ)
 table(df_raw$educ, useNA = "ifany")
 
-## Region: expected categories are 1, 2, 3 and 4
 table(df_raw$region, useNA = "ifany")
 
-## Race/ethnicity indicators should sum to 1 for each respondent
 race_total <- rowSums(
   df_raw[c("wnh", "bnh", "hispanic", "onh")],
   na.rm = FALSE
@@ -84,7 +72,6 @@ race_total <- rowSums(
 
 table(race_total, useNA = "ifany")
 
-## Compare supplied lowed with the definition based on education
 with(
   df_raw,
   table(lowed, educ < 12, useNA = "ifany")
@@ -93,42 +80,32 @@ with(
 
 
 ```{r}
-## create cleaned variables 
-## get years from 65, keep only positive weights cos 0 weights doesnt add to the analysis, get health status that are relevant, indicator for poor health, indicator for very good health, indicator for low education 
-## Create analysis variables while retaining original columns
 df <- df_raw %>%
   mutate(
-    # Distance from the eligibility cutoff, in years
     age_c = age4 - 65,
 
-    # Medicare eligibility
     eligible65 = as.integer(age4 >= 65),
 
-    # Flag usable weights; this does NOT remove observations
     positive_weight = !is.na(wt) & wt > 0,
 
-    # Valid self-rated health categories
     health_clean = if_else(
       health %in% 1:5,
       as.numeric(health),
       NA_real_
     ),
 
-    # Correct poor-health indicator
     poor_clean = if_else(
       is.na(health_clean),
       NA_real_,
       as.numeric(health_clean == 5)
     ),
 
-    # Below high-school education; preserve missing education
     lowed_clean = if_else(
       is.na(educ),
       NA_real_,
       as.numeric(educ < 12)
     ),
 
-    # Categorical versions for later analysis
     region_factor = factor(region),
     year_factor = factor(year)
   )
@@ -160,7 +137,6 @@ missing_table <- df %>%
 print(missing_table)
 ```
 ```{r}
-## df using only the key variables and dropped na
 
 df_select <- df %>%
   select(all_of(key_vars)) %>%
@@ -170,7 +146,6 @@ head(df_select)
 
 
 ```{r}
-## prepare data for eda
 eda <- df %>%
   filter(positive_weight) %>% ## positive weights
   mutate(
@@ -179,7 +154,6 @@ eda <- df %>%
       levels = c("Below 65", "65 and above")
     ),
 
-    # Region shares: do not average numeric region codes
     region1 = as.integer(region == 1),
     region2 = as.integer(region == 2),
     region3 = as.integer(region == 3),
@@ -189,8 +163,6 @@ eda <- df %>%
 
 
 ```{r}
-## descriptive table for ages 60-70 
-## Summarise coverage, outcomes and characteristics on each side.
 summary_vars <- c(
   "mcare", "covered2",
   "sawdr", "inhosp", "goodplus", "poor_clean",
@@ -220,8 +192,6 @@ descriptive_table
 ```
 
 ```{r}
-### plot coverage, utilisation, health against age 
-#### calculate weighted means at each observed quarter-year age:
 profile_vars <- c(
   "mcare", "covered2",
   "sawdr", "inhosp",
@@ -318,21 +288,18 @@ plot_profiles <- function(vars, title, percentage = TRUE) {
     theme_minimal() +
     theme(legend.position = "bottom")
 }
-# Insurance coverage
 p_coverage <- plot_profiles(
   c("mcare", "covered2"),
   "Insurance coverage around age 65"
 )
 p_coverage
 
-# Healthcare utilisation
 p_utilisation <- plot_profiles(
   c("sawdr", "inhosp"),
   "Healthcare utilisation around age 65"
 )
 p_utilisation
 
-# Exploratory health outcomes
 p_health <- plot_profiles(
   c("goodplus", "poor_clean"),
   "Self-rated health around age 65"
@@ -340,7 +307,6 @@ p_health <- plot_profiles(
 p_health
 ```
 ```{r}
-#### Examine respondent composition and employment
 p_demographics <- plot_profiles(
   c("female", "wnh", "bnh", "hispanic", "onh"),
   "Demographic composition around age 65"
@@ -367,7 +333,6 @@ p_employment <- plot_profiles(
 p_employment
 ```
 ```{r}
-#### missingness check by year 
 missing_by_year <- df %>%
   select(year, mcare, covered2, sawdr, inhosp) %>%
   pivot_longer(
@@ -393,7 +358,6 @@ ggplot(missing_by_year, aes(year, missing_pct)) +
   ) +
   theme_minimal()
 
-## missingness near cutoff 
 missing_by_age <- df %>%
   select(age4, mcare, covered2, sawdr, inhosp) %>%
   pivot_longer(
@@ -422,7 +386,6 @@ ggplot(
   ) +
   theme_minimal()
 
-## how many respondents in each age cell 
 df %>%
   count(age4) %>%
   ggplot(aes(age4, n)) +
@@ -438,7 +401,6 @@ df %>%
 ```
 
 ```{r}
-### comparing utilisation across survey periods 
 period_profiles <- eda %>%
   mutate(
     period = case_when(
@@ -485,10 +447,8 @@ print(descriptive_table, n = Inf)
 ```{r}
 dir.create("outputs", showWarnings = FALSE)
 
-# Cleaned master: retains all respondents
 saveRDS(df, "outputs/nhis_clean_master.rds")
 
-# Tables
 write.csv(
   descriptive_table,
   "outputs/descriptive_table.csv",
@@ -513,7 +473,6 @@ write.csv(
   row.names = FALSE
 )
 
-# Underlying numbers used in the age-profile plots
 write.csv(
   age_profiles,
   "outputs/age_profiles.csv",
@@ -626,13 +585,11 @@ writeLines(
   "outputs/READ_ME_FIRST.txt"
 )
 
-# Record package versions for reproducibility
 capture.output(
   sessionInfo(),
   file = "outputs/R_session_info.txt"
 )
 
-# Display the output folder location
 normalizePath("outputs")
 ```
 

@@ -1,6 +1,4 @@
-# Shared sample construction, estimator and plots for the sharp RD reports.
-# Sourced by sharp_rd_identification.Rmd and sharp_rd_estimation.Rmd so both
-# use an identical specification.
+# Shared functions for the sharp RD analysis.
 
 find_root <- function(start=getwd()) {
   root <- normalizePath(start,winslash='/',mustWork=TRUE)
@@ -72,7 +70,6 @@ fit_rd <- function(d,y,h=5,cutoff=65,donut=0,poly=1,covars=NULL) {
   list(row=row,predict=pred,model=f)
 }
 
-# Stack the $row of several fits into one data frame.
 rd_rows <- function(fits) do.call(rbind,lapply(fits,function(f) f$row))
 
 pct <- function(v,digits=2) sprintf(paste0('%.',digits,'f'),100*v)
