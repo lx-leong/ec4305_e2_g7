@@ -17,6 +17,8 @@ load_rd_data <- function(root) {
                   'covered2','female','wnh','bnh','hispanic','onh',
                   'lowed_clean','region','group','wt') %in% names(d)))
   d <- subset(d,year %in% 1992:1996 & !is.na(sawdr) & is.finite(wt) & wt>0)
+  d$group <- with(d,ifelse(is.na(wnh) | is.na(lowed_clean),NA_integer_,
+                          ifelse(wnh==1,1L,3L)+as.integer(lowed_clean)))
   for(r in 1:4) d[[paste0('region_',r)]] <- ifelse(is.na(d$region),NA,as.integer(d$region==r))
   d
 }

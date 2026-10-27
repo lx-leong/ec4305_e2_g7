@@ -350,6 +350,8 @@ Under this scenario, the implied magnitudes are **`r pct(bound$max_bias[1])` pp*
 
 # Check 4: subgroup pattern
 
+Race-by-education groups use the cleaned education indicator. Respondents with missing education are excluded from subgroup comparisons, but remain in employment and other analyses that do not require education.
+
 The employment RD tests retirement directly. The subgroup pattern provides complementary, descriptive evidence about attribution. Under the additional assumption that effects per induced enrollee are similar across groups, larger Medicare coverage jumps predict larger utilisation jumps. Heterogeneous benefits and insurance generosity can break this ranking even when Medicare matters. If retirement drove it, the jumps in use should instead follow the jumps in employment. We use the four race × education groups (`group`) and Medicare coverage (`mcare`), the project's first-stage variable.
 
 This section estimates only the coverage and employment jumps by group, and states the prediction **before** the outcome jumps are estimated. The estimation report tests it.

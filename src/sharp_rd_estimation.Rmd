@@ -65,8 +65,6 @@ root <- find_root()
 out <- file.path(root,'output','sharp_rd_estimation')
 dir.create(out,recursive=TRUE,showWarnings=FALSE)
 d <- load_rd_data(root)
-d$group <- with(d,ifelse(is.na(wnh) | is.na(lowed_clean),NA_integer_,
-                        ifelse(wnh==1,1L,3L)+as.integer(lowed_clean)))
 stopifnot(all(is.na(d$group[is.na(d$lowed_clean)])))
 H <- 5; H_alt <- c(3,4,5,6,7)
 outcomes <- c('sawdr','inhosp')
