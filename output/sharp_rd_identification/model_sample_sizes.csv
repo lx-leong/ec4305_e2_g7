@@ -1,0 +1,108 @@
+"label","outcome","required_variables","h","cutoff","donut","polynomial","year_FE","survey_weighted","N_input","N_used","n_left","n_right","age_min","age_max"
+"Response observed_sawdr","observed_sawdr","observed_sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Response observed_mcare","observed_mcare","observed_mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Response observed_covered2","observed_covered2","observed_covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Response observed_educ","observed_educ","observed_educ, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance sawdr female","female","female, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance sawdr wnh","wnh","wnh, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance sawdr bnh","bnh","bnh, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance sawdr hispanic","hispanic","hispanic, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance sawdr lowed_clean","lowed_clean","lowed_clean, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34468,16988,17480,60.25,69.75
+"Balance sawdr region_1","region_1","region_1, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance sawdr region_2","region_2","region_2, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance sawdr region_3","region_3","region_3, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance inhosp female","female","female, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance inhosp wnh","wnh","wnh, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance inhosp bnh","bnh","bnh, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance inhosp hispanic","hispanic","hispanic, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance inhosp lowed_clean","lowed_clean","lowed_clean, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,34920,17201,17719,60.25,69.75
+"Balance inhosp region_1","region_1","region_1, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance inhosp region_2","region_2","region_2, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance inhosp region_3","region_3","region_3, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Balance bandwidth female 3","female","female, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth female 4","female","female, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth female 5","female","female, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth female 6","female","female, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth female 7","female","female, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"Balance bandwidth wnh 3","wnh","wnh, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth wnh 4","wnh","wnh, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth wnh 5","wnh","wnh, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth wnh 6","wnh","wnh, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth wnh 7","wnh","wnh, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"Balance bandwidth bnh 3","bnh","bnh, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth bnh 4","bnh","bnh, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth bnh 5","bnh","bnh, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth bnh 6","bnh","bnh, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth bnh 7","bnh","bnh, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"Balance bandwidth hispanic 3","hispanic","hispanic, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth hispanic 4","hispanic","hispanic, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth hispanic 5","hispanic","hispanic, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth hispanic 6","hispanic","hispanic, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth hispanic 7","hispanic","hispanic, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"Balance bandwidth lowed_clean 3","lowed_clean","lowed_clean, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20432,9771,10661,62.25,67.75
+"Balance bandwidth lowed_clean 4","lowed_clean","lowed_clean, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27410,13324,14086,61.25,68.75
+"Balance bandwidth lowed_clean 5","lowed_clean","lowed_clean, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34468,16988,17480,60.25,69.75
+"Balance bandwidth lowed_clean 6","lowed_clean","lowed_clean, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,41505,20618,20887,59.25,70.75
+"Balance bandwidth lowed_clean 7","lowed_clean","lowed_clean, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,48318,24259,24059,58.25,71.75
+"Balance bandwidth region_1 3","region_1","region_1, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth region_1 4","region_1","region_1, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth region_1 5","region_1","region_1, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth region_1 6","region_1","region_1, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth region_1 7","region_1","region_1, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"Balance bandwidth region_2 3","region_2","region_2, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth region_2 4","region_2","region_2, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth region_2 5","region_2","region_2, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth region_2 6","region_2","region_2, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth region_2 7","region_2","region_2, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"Balance bandwidth region_3 3","region_3","region_3, age4, year, wt",3,65,0,1,TRUE,TRUE,69622,20726,9913,10813,62.25,67.75
+"Balance bandwidth region_3 4","region_3","region_3, age4, year, wt",4,65,0,1,TRUE,TRUE,69622,27807,13520,14287,61.25,68.75
+"Balance bandwidth region_3 5","region_3","region_3, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Balance bandwidth region_3 6","region_3","region_3, age4, year, wt",6,65,0,1,TRUE,TRUE,69622,42124,20937,21187,59.25,70.75
+"Balance bandwidth region_3 7","region_3","region_3, age4, year, wt",7,65,0,1,TRUE,TRUE,69622,49016,24624,24392,58.25,71.75
+"female","female","female, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"wnh","wnh","wnh, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"bnh","bnh","bnh, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"hispanic","hispanic","hispanic, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"lowed_clean","lowed_clean","lowed_clean, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34468,16988,17480,60.25,69.75
+"region_1","region_1","region_1, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"region_2","region_2","region_2, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"region_3","region_3","region_3, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Index sawdr","sawdr_index","sawdr_index, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34468,16988,17480,60.25,69.75
+"Index inhosp","inhosp_index","inhosp_index, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,34920,17201,17719,60.25,69.75
+"Employment h 3","emp","emp, age4, year, wt",3,65,0,1,TRUE,TRUE,70751,21057,10070,10987,62.25,67.75
+"Employment h 4","emp","emp, age4, year, wt",4,65,0,1,TRUE,TRUE,70751,28243,13734,14509,61.25,68.75
+"Employment h 5","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Employment h 6","emp","emp, age4, year, wt",6,65,0,1,TRUE,TRUE,70751,42783,21277,21506,59.25,70.75
+"Employment h 7","emp","emp, age4, year, wt",7,65,0,1,TRUE,TRUE,70751,49794,25051,24743,58.25,71.75
+"Employment, doctor sample","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Employment donut","emp","emp, age4, year, wt",5,65,0.25,1,TRUE,TRUE,70751,34590,17496,17094,60.25,69.75
+"Employment placebo 60","emp","emp, age4, year, wt",2,60,0,1,TRUE,TRUE,70751,13971,6600,7371,58.25,61.75
+"Employment placebo 70","emp","emp, age4, year, wt",2,70,0,1,TRUE,TRUE,70751,12842,6116,6726,68.25,71.75
+"Employment control 62","emp","emp, age4, year, wt",2,62,0,1,TRUE,TRUE,70751,13833,6416,7417,60.25,63.75
+"emp","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Subgroup 1 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 1 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 1 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 2 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 2 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 2 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 3 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 3 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 3 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 4 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 4 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 4 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 1 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 1 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 1 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 2 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 2 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 2 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 3 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 3 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 3 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 4 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
+"Subgroup 4 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
+"Subgroup 4 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
+"Medicare overall","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,33113,16218,16895,60.25,69.75
+"Coverage overall","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,33209,16276,16933,60.25,69.75
