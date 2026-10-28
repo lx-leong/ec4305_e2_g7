@@ -1,0 +1,75 @@
+"label","outcome","required_variables","h","cutoff","donut","polynomial","year_FE","survey_weighted","N_input","N_used","n_left","n_right","age_min","age_max"
+"sawdr Main: +/-5 years","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,34972,17231,17741,60.25,69.75
+"sawdr +/-3 years","sawdr","sawdr, age4, year, wt",3,65,0,1,TRUE,TRUE,70751,20726,9913,10813,62.25,67.75
+"sawdr +/-4 years","sawdr","sawdr, age4, year, wt",4,65,0,1,TRUE,TRUE,70751,27807,13520,14287,61.25,68.75
+"sawdr +/-6 years","sawdr","sawdr, age4, year, wt",6,65,0,1,TRUE,TRUE,70751,42124,20937,21187,59.25,70.75
+"sawdr +/-7 years","sawdr","sawdr, age4, year, wt",7,65,0,1,TRUE,TRUE,70751,49016,24624,24392,58.25,71.75
+"sawdr Local quadratic, +/-5 years","sawdr","sawdr, age4, year, wt",5,65,0,2,TRUE,TRUE,70751,34972,17231,17741,60.25,69.75
+"sawdr No covariates, covariate sample","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,69544,34468,16988,17480,60.25,69.75
+"sawdr With covariates, same sample","sawdr","sawdr, age4, year, wt, female, bnh, hispanic, onh, lowed_clean, region_1, region_2, region_3",5,65,0,1,TRUE,TRUE,69544,34468,16988,17480,60.25,69.75
+"sawdr Donut: drop 65.00","sawdr","sawdr, age4, year, wt",5,65,0.25,1,TRUE,TRUE,70751,34071,17231,16840,60.25,69.75
+"sawdr Donut: drop 64.75-65.25","sawdr","sawdr, age4, year, wt",5,65,0.5,1,TRUE,TRUE,70751,32166,16284,15882,60.25,69.75
+"sawdr Exclude ages 65.00-65.75","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,67051,31335,17231,14104,60.25,69.75
+"sawdr No survey weights (kernel only)","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,FALSE,70751,34972,17231,17741,60.25,69.75
+"sawdr No year fixed effects","sawdr","sawdr, age4, year, wt",5,65,0,1,FALSE,TRUE,70751,34972,17231,17741,60.25,69.75
+"sawdr Exclude 1993 (half-year sample)","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,61166,30225,14940,15285,60.25,69.75
+"sawdr Medicare observed (fuzzy RD sample)","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,32709,16027,16682,60.25,69.75
+"sawdr Placebo at 63","sawdr","sawdr, age4, year, wt",2,63,0,1,TRUE,TRUE,37066,13520,6346,7174,61.25,64.75
+"sawdr Placebo at 64","sawdr","sawdr, age4, year, wt",2,64,0,1,TRUE,TRUE,37066,9913,6309,3604,62.25,64.75
+"sawdr Placebo at 66","sawdr","sawdr, age4, year, wt",2,66,0,1,TRUE,TRUE,32762,9912,2736,7176,65.25,67.75
+"sawdr Placebo at 67","sawdr","sawdr, age4, year, wt",2,67,0,1,TRUE,TRUE,32762,13386,6370,7016,65.25,68.75
+"inhosp Main: +/-5 years","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"inhosp +/-3 years","inhosp","inhosp, age4, year, wt",3,65,0,1,TRUE,TRUE,70751,21057,10070,10987,62.25,67.75
+"inhosp +/-4 years","inhosp","inhosp, age4, year, wt",4,65,0,1,TRUE,TRUE,70751,28243,13734,14509,61.25,68.75
+"inhosp +/-6 years","inhosp","inhosp, age4, year, wt",6,65,0,1,TRUE,TRUE,70751,42783,21277,21506,59.25,70.75
+"inhosp +/-7 years","inhosp","inhosp, age4, year, wt",7,65,0,1,TRUE,TRUE,70751,49794,25051,24743,58.25,71.75
+"inhosp Local quadratic, +/-5 years","inhosp","inhosp, age4, year, wt",5,65,0,2,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"inhosp No covariates, covariate sample","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,69544,34920,17201,17719,60.25,69.75
+"inhosp With covariates, same sample","inhosp","inhosp, age4, year, wt, female, bnh, hispanic, onh, lowed_clean, region_1, region_2, region_3",5,65,0,1,TRUE,TRUE,69544,34920,17201,17719,60.25,69.75
+"inhosp Donut: drop 65.00","inhosp","inhosp, age4, year, wt",5,65,0.25,1,TRUE,TRUE,70751,34590,17496,17094,60.25,69.75
+"inhosp Donut: drop 64.75-65.25","inhosp","inhosp, age4, year, wt",5,65,0.5,1,TRUE,TRUE,70751,32654,16532,16122,60.25,69.75
+"inhosp Exclude ages 65.00-65.75","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,67051,31813,17496,14317,60.25,69.75
+"inhosp No survey weights (kernel only)","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,FALSE,70751,35513,17496,18017,60.25,69.75
+"inhosp No year fixed effects","inhosp","inhosp, age4, year, wt",5,65,0,1,FALSE,TRUE,70751,35513,17496,18017,60.25,69.75
+"inhosp Exclude 1993 (half-year sample)","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,61166,30716,15181,15535,60.25,69.75
+"inhosp Medicare observed (fuzzy RD sample)","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"inhosp Placebo at 63","inhosp","inhosp, age4, year, wt",2,63,0,1,TRUE,TRUE,37066,13734,6441,7293,61.25,64.75
+"inhosp Placebo at 64","inhosp","inhosp, age4, year, wt",2,64,0,1,TRUE,TRUE,37066,10070,6407,3663,62.25,64.75
+"inhosp Placebo at 66","inhosp","inhosp, age4, year, wt",2,66,0,1,TRUE,TRUE,32762,10064,2777,7287,65.25,67.75
+"inhosp Placebo at 67","inhosp","inhosp, age4, year, wt",2,67,0,1,TRUE,TRUE,32762,13586,6470,7116,65.25,68.75
+"Employment at 65","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Employment at 62","emp","emp, age4, year, wt",2,62,0,1,TRUE,TRUE,70751,13833,6416,7417,60.25,63.75
+"sawdr","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,34972,17231,17741,60.25,69.75
+"inhosp","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Subgroup 1 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 1 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 1 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 2 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 2 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 2 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 3 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 3 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 3 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 4 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 4 sawdr Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 4 sawdr employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 1 sawdr outcome","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
+"Subgroup 2 sawdr outcome","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,12495,6520,2863,3657,60.25,69.75
+"Subgroup 3 sawdr outcome","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,6948,3380,1857,1523,60.25,69.75
+"Subgroup 4 sawdr outcome","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,7361,3760,1808,1952,60.25,69.75
+"Subgroup 1 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 1 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 1 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 2 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 2 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 2 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 3 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 3 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 3 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 4 inhosp coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
+"Subgroup 4 inhosp Medicare","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
+"Subgroup 4 inhosp employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
+"Subgroup 1 inhosp outcome","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,38230,18982,9447,9535,60.25,69.75
+"Subgroup 2 inhosp outcome","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,12645,6593,2896,3697,60.25,69.75
+"Subgroup 3 inhosp outcome","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,7065,3438,1886,1552,60.25,69.75
+"Subgroup 4 inhosp outcome","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,7474,3815,1831,1984,60.25,69.75
