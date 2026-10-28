@@ -1,0 +1,266 @@
+---
+title: "Medicare at 65: Revised Sharp RD Identification"
+subtitle: "Checking the continuity assumption before estimating the effect"
+knit: |
+  (function(inputFile, ...) {
+    candidates <- c(
+      file.path(Sys.getenv('LOCALAPPDATA'), 'Programs', 'Pandoc'),
+      file.path(Sys.getenv('LOCALAPPDATA'), 'Pandoc'),
+      file.path(Sys.getenv('ProgramFiles'), 'Pandoc'),
+      file.path(Sys.getenv('ProgramFiles'), 'RStudio', 'resources',
+                'app', 'bin', 'quarto', 'bin', 'tools')
+    )
+    found <- candidates[file.exists(file.path(candidates, 'pandoc.exe'))]
+    if (length(found)) Sys.setenv(RSTUDIO_PANDOC = found[1])
+    project <- dirname(normalizePath(inputFile, winslash = '/', mustWork = TRUE))
+    while (!file.exists(file.path(project, 'data', 'c9203.sas7bdat'))) {
+      parent <- dirname(project)
+      if (identical(parent, project)) stop('Cannot locate project data.')
+      project <- parent
+    }
+    destination <- file.path(project, 'output', 'sharp_rd_identification_revised')
+    dir.create(destination, recursive = TRUE, showWarnings = FALSE)
+    options <- list(...)
+    options$output_dir <- destination
+    options$intermediates_dir <- tempdir()
+    do.call(rmarkdown::render, c(list(input = inputFile), options))
+  })
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    number_sections: true
+    theme: flatly
+    highlight: tango
+---
+
+<style>
+body {font-family:'Segoe UI',Arial,sans-serif; font-size:16px; line-height:1.75; color:#293b49; background:#fbfcfd;}
+.main-container {max-width:1160px;}
+#header {padding:28px 0 24px; border-bottom:3px solid #267c86; margin-bottom:30px;}
+h1.title {font-size:34px; font-weight:700; letter-spacing:-.8px; color:#143c50;}
+.subtitle {font-size:18px; color:#6b7d88; font-weight:400;}
+h1 {font-size:27px; color:#143c50; margin-top:48px; padding-bottom:10px; border-bottom:1px solid #dde7eb;}
+h2 {font-size:21px; color:#17465c; margin-top:32px;}
+table {width:100%; border-collapse:collapse; font-size:14px; margin:24px 0!important; background:white;}
+th,td {padding:11px 14px!important; border-bottom:1px solid #e3eaee!important;}
+thead th {background:#edf4f6; color:#17465c; font-weight:600; border-top:0!important;}
+tbody tr:nth-child(even) {background:#f7fafb;}
+.finding {background:#edf6f6; border-left:4px solid #267c86; padding:18px 22px; margin:24px 0; border-radius:0 8px 8px 0;}
+.finding p:last-child {margin-bottom:0;}
+.caution {background:#fbf4ec; border-left:4px solid #c17948; padding:18px 22px; margin:24px 0; border-radius:0 8px 8px 0;}
+.caution p:last-child {margin-bottom:0;}
+.figure {background:white; padding:12px; margin:24px 0; border:1px solid #e5ecef; border-radius:8px;}
+.caption {color:#687d8a; font-size:13px;}
+img {max-width:100%;}
+@media print {body {background:white;} #TOC {display:none;} .toc-content {width:100%;} }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE,message=FALSE,error=FALSE,
+                      fig.width=9,fig.height=5,dpi=160,fig.align='center')
+source('rd_functions_revised.R')
+root <- find_root(); out <- file.path(root,'output','sharp_rd_identification_revised')
+dir.create(out,recursive=TRUE,showWarnings=FALSE)
+d <- load_rd_data(root); H <- 5; H_alt <- 3:7
+win <- subset(d,abs(age4-65)<H)
+doc <- subset(d,!is.na(sawdr)); hosp <- subset(d,!is.na(inhosp))
+balance_vars <- c('female','wnh','bnh','hispanic','lowed_clean','region_1','region_2','region_3')
+```
+
+# Research question and estimand
+
+This is our **Option 1 implementation** of the Medicare-at-65 design using the supplied Card, Dobkin and Maestas replication extract, restricted to 1992–1996. The source data and age threshold are inherited. Our contribution is the implementation, sample/weight audit and transparent assessment of identification in this restricted period; we do not claim the original authors omitted employment or subgroup analyses.
+
+Let $Z_i=1(age4_i\ge65)$ denote the coded age-based eligibility rule, $D_i=\texttt{mcare}_i$ Medicare participation, and $Y_i$ doctor contact (`sawdr`, primary) or hospital stay (`inhosp`, secondary). The sharp analysis estimates
+$$\tau_{ITT}=\lim_{a\downarrow65}E[Y_i\mid age4_i=a]-\lim_{a\uparrow65}E[Y_i\mid age4_i=a].$$
+Under the RD assumptions this is a **local intention-to-treat (ITT) effect of age-based Medicare eligibility**. Equivalently it is the average effect of the eligibility rule at the cutoff. It is not the population ATE of Medicare coverage, an ATT for everyone already enrolled, or a full-year treatment effect. People can have Medicare below 65, and not everyone takes it up at 65; “sharp” describes the coded eligibility instrument, not actual insurance coverage.
+
+The separate fuzzy IV divides the outcome jump by the Medicare jump **on identical respondents**. Under relevance, local continuity, exclusion, monotonicity and treatment consistency, that ratio identifies a **coverage LATE for people induced into Medicare by age-based eligibility near 65**. If another independent policy changes at 65, even the sharp jump can be an age-65 policy-bundle effect rather than an isolated Medicare ITT.
+
+# Identification before estimation
+
+**Continuity assumption.** In the absence of the eligibility change, expected healthcare use and sample composition must evolve smoothly through age 65. In plain English, the comparison needs otherwise comparable people immediately below and above the cutoff, without another discontinuous cause of their healthcare use.
+
+Biological age cannot be chosen, which makes strategic sorting less plausible. This does not rule out age measurement error, reporting heaping, differential nonresponse, institutionalisation or survival. Sex, race and completed education are plausibly predetermined; region is a weaker check because retirement-related moves are possible. Covariate balance and response checks provide supporting evidence, not a test of unobserved potential outcomes.
+
+**Attribution to Medicare.** A separate retirement or pension rule can change income, free time or employer coverage. Medicare-induced retirement can be part of the total eligibility effect; an independent age-65 rule is a competing cause. Sharp ITT does not need the fuzzy binary-coverage exclusion restriction, but it still needs a credible reason to attribute the threshold break to Medicare. A strong first stage cannot provide that reason alone.
+
+**Measurement and anticipation.** The outcomes look back twelve months while eligibility and coverage are measured at interview. Anticipatory deferral of care and partial exposure complicate interpretation. Neither a direction of attenuation nor a full-year treatment effect follows automatically. Discrete quarter-age support means we estimate an extrapolated cutoff jump using a specified age curve, rather than observing arbitrarily close continuous ages.
+
+## Weights and year effects
+
+The main regression weight is
+$$w_i=\frac{w_i^{NHIS}/5}{\operatorname{mean}_{sample}(w^{NHIS}/5)}\max\{0,1-|age4_i-65|/h\}.$$
+The survey component represents people; the triangular kernel emphasises proximity to 65. Both were present in the original group code. Common division by five and mean normalisation do not change the fit. The substantive correction is the relative weight across years:
+
+| Year | Source-scale weight reconstructed from supplied `wt` |
+|:--|:--|
+| 1992, 1994, 1995 | `wt` |
+| 1993, 1996 | `2 * wt` |
+
+The replication preparation halved both 1993 and 1996 weights. [NCHS 1993 insurance documentation](https://ftp.cdc.gov/pub/health_statistics/nchs/Dataset_Documentation/NHIS/1993/HEALTHIN.pdf), pp. 1–2, recommends its semiannual weight; interviews cover July–December only. [NCHS 1996 insurance documentation](https://ftp.cdc.gov/pub/health_statistics/nchs/dataset_documentation/NHIS/1996/healthin.pdf), pp. 1–2, recommends its annual weight, already adjusted for the smaller sample. We restore those documented fields, retain supplied-weight and no-1993 sensitivities, and preserve the original `wt` as `wt_replication`. This reconstruction is based on the archived preparation code, not a new record-level match to original NHIS microdata. The supplied input files are unchanged.
+
+Dividing by five is a [standard pooling convention](https://nhis.ipums.org/nhis/userNotes_weights.shtml). Here 1993 remains a second-half-year sample: scaling cannot create its missing interview months. We target a population-weighted mixture of the available survey periods, not exact full-year averages or national totals. Nonresponse still matters. Year effects absorb common annual levels, not seasonality or the 1995 sampling redesign. HC1 standard errors are **not full NHIS design-based standard errors**: the extract lacks usable PSU/stratum/household identifiers.
+
+
+The doctor-contact question uses the same pre-1997 wording regime within 1992–1996, including contact with a doctor/assistant in hospital ([NHIS DVINT](https://nhis.ipums.org/nhis-action/variables/DVINT)). Year effects remain useful for annual levels in healthcare use and coverage. Their use is not justified by a questionnaire change inside this five-year period.
+
+```{r weights-table}
+knitr::kable(weight_audit(d),digits=1,caption='Weight reconstruction audit; sums are not national population totals.')
+```
+
+# Source sample and outcome-specific selection
+
+We load the SAS source before dropping any outcome. Each regression drops only its required variables. The doctor sharp RD requires observed `sawdr`, age, year and weight, **not `mcare`**. The hospital sharp RD requires `inhosp`, age, year and weight, **not `sawdr` or `mcare`**. Fuzzy IV additionally requires observed Medicare for its numerator and first stage.
+
+```{r sample-table}
+flow <- data.frame(Sample=c('All source observations','Doctor sharp RD','Hospital sharp RD',
+                            'Doctor fuzzy IV','Hospital fuzzy IV'),
+  Before_window=c(nrow(d),nrow(doc),nrow(hosp),sum(complete.cases(d[c('sawdr','mcare')])),
+                  sum(complete.cases(d[c('inhosp','mcare')]))),
+  Within_h5=c(nrow(win),sum(!is.na(win$sawdr)),sum(!is.na(win$inhosp)),
+              sum(complete.cases(win[c('sawdr','mcare')])),sum(complete.cases(win[c('inhosp','mcare')]))))
+knitr::kable(flow)
+restored <- sum(is.na(win$sawdr)&!is.na(win$inhosp))
+```
+
+The revised hospital sharp sample restores **`r restored` respondents** inside the main window who have an observed hospital outcome but missing doctor outcome. This is a correction to our analysis sample, not a claim about the published paper. Missing education affects education checks and subgroup/adjusted models only.
+
+```{r response-checks}
+response_vars <- c('observed_sawdr','observed_inhosp','observed_mcare','observed_educ','included_doctor_iv')
+response <- rd_rows(lapply(response_vars,function(y)fit_rd(d,y,H)))
+response$p_holm <- p.adjust(response$p_value,'holm')
+cat(table_rd(response,unname(rd_labels[response$outcome]),relative=FALSE),sep='\n')
+```
+
+These response indicators are estimated **before** complete-case selection, with the main window, weights and year effects. Hospital response is constant in this source period; its zero jump is mechanical. Smooth response rates cannot show that missing outcomes themselves are ignorable. The professor's post-1996 Sample Adult-weight checks, recoding and period comparison remain outside the group's restricted scope, not completed by stopping at 1996.
+
+# Check 1: age support and reporting
+
+```{r age-audit}
+counts <- table(d$age4)
+near <- counts[names(counts)%in%c('64.5','64.75','65.25','65.5')]
+ratio65 <- as.numeric(counts['65'])/mean(near)
+integer_share <- mean(d$age4==round(d$age4))
+age_disagreement <- sum((d$age>=65)!=(d$age4>=65),na.rm=TRUE)
+at65 <- subset(d,age4==65)
+age_audit <- do.call(rbind,lapply(split(subset(d,abs(age4-65)<=.75),subset(d,abs(age4-65)<=.75)$age4),function(v)
+  data.frame(age4=v$age4[1],N=nrow(v),whole_age_below65=sum(v$age<65),
+             Medicare_percent=100*wmean(v$mcare,v$wt))))
+knitr::kable(age_audit,digits=2)
+```
+
+```{r age-histogram, fig.cap='Source-sample counts by quarter-based age, before outcome selection.'}
+hist(d$age4,breaks=seq(55,75,by=.25),right=FALSE,main='Quarter-age support',
+     xlab='Quarter-based age',ylab='Respondents',col='#8ca8b7',border='white')
+abline(v=65,lty=2,col='#B2182B',lwd=2)
+```
+
+The 65.00 cell is `r sprintf('%.2f',ratio65)` times the mean of its four neighbouring cells; `r sprintf('%.1f',100*integer_share)`% of observations lie at whole-year values of `age4`. These are descriptive heaping checks, not formal density tests or pass/fail thresholds. Calendar sampling and birth/interview timing need not yield exactly equal cell counts.
+
+The coded threshold disagrees with `age >= 65` for `r age_disagreement` respondents. At `age4 = 65`, `r sum(at65$age<65)` of `r nrow(at65)` have whole-year age below 65. Neither measure is declared the truth. It is not established that precisely half the cell is ineligible, or that every neighbouring cell is correctly classified. Donuts assess sensitivity to removing ambiguous cells, with more extrapolation.
+
+# Check 2: covariate continuity
+
+```{r balance-fit}
+balance <- do.call(rbind,lapply(c('sawdr','inhosp'),function(y) {
+  dy <- d[!is.na(d[[y]]),]
+  a <- rd_rows(lapply(balance_vars,function(v)fit_rd(dy,v,H,label=paste('Balance',y,v))))
+  a$sample <- y; a$p_holm <- p.adjust(a$p_value,'holm'); a
+}))
+balance_h <- rd_rows(unlist(lapply(balance_vars,function(v)
+  lapply(H_alt,function(h)fit_rd(doc,v,h))),recursive=FALSE))
+```
+
+```{r balance-table, results='asis'}
+for(y in c('sawdr','inhosp')) {
+ cat('\n\n',rd_labels[y],' sample:\n\n',sep='')
+ b<-subset(balance,sample==y)
+ cat(table_rd(b,unname(rd_labels[b$outcome]),relative=FALSE),sep='\n')
+}
+```
+
+```{r balance-plots, fig.height=11, fig.cap='Doctor-sample covariate means and fitted age trends; each plot uses its own complete-case sample.'}
+par(mfrow=c(4,2),mar=c(4,4.5,3,1),cex=.9)
+for(y in balance_vars) plot_rd(doc,y,H)
+par(mfrow=c(1,1))
+```
+
+```{r balance-bandwidth}
+bh <- reshape(transform(balance_h[,c('outcome','bandwidth')],
+  cell=sprintf('%s; N=%s',pct(balance_h$estimate),balance_h$N)),
+  idvar='outcome',timevar='bandwidth',direction='wide')
+names(bh)<-c('Covariate',paste0('+/-',H_alt,' years'))
+bh$Covariate<-unname(rd_labels[bh$Covariate]);knitr::kable(bh)
+```
+
+Across the two outcome-specific main samples, `r sum(balance$p_holm<.05)` checks reject at the 5% Holm threshold (adjusted within each outcome's covariate family). Nonrejection is consistent with continuity but is not evidence of equivalence. Rejection would be a design warning, not something automatically repaired by adding controls. We do not call a fitted covariate index a formal joint test: it tests one chosen projection and its fitted coefficients add uncertainty.
+
+# Check 3: employment as an indirect retirement diagnostic
+
+**Can retirement be tested directly? Not in the supplied 1992–1996 extract.** `emp` measures recent employment. `empft` and `wrkhrs` are entirely missing in these years; no retirement or benefit-claiming variable is retained. The historical [major-activity documentation](https://nhis.ipums.org/nhis-action/variables/MAJACT) says the 1982–1996 question did not separately identify retirement. Recoding `1-emp` would measure non-employment, including unemployment and other inactivity, and would merely reverse the existing employment result.
+
+Social Security's normal retirement age was 65 for the relevant cohorts ([SSA](https://www.ssa.gov/oact/progdata/nra.html)). Employment is therefore a useful **indirect** diagnostic of a plausible competing channel. A direct test would require a validated retirement/claiming measure with comparable definitions on both sides; these inputs cannot supply one. Even a zero retirement jump would not rule out income or pension changes among people already retired.
+
+```{r employment-fit}
+employment <- rd_rows(lapply(H_alt,function(h)fit_rd(d,'emp',h)))
+e <- subset(employment,bandwidth==H)
+falsify <- rd_rows(list(fit_rd(d,'emp',H,donut=.25),fit_rd(d,'emp',2,60),fit_rd(d,'emp',2,70)))
+control62 <- fit_rd(d,'emp',2,62); c62 <- control62$row
+emp_samples <- rd_rows(list(fit_rd(d,'emp',H),fit_rd(doc,'emp',H),
+  fit_rd(subset(d,!is.na(sawdr)&!is.na(mcare)),'emp',H)))
+```
+
+```{r employment-plot, fig.cap='Recent employment around 65; this is not a direct measure of retirement.'}
+plot_rd(d,'emp',H)
+```
+
+```{r employment-tables, results='asis'}
+cat(table_rd(employment,paste0('+/-',employment$bandwidth,' years')),sep='\n')
+cat(table_rd(emp_samples,c('Source sample','Doctor-response sample','Doctor IV matched sample')),sep='\n')
+cat(table_rd(falsify,c('Donut: drop 65.00','Placebo at 60, h=2','Placebo at 70, h=2')),sep='\n')
+cat(table_rd(c62,'Age 62 comparison, h=2'),sep='\n')
+```
+
+The source-sample employment jump is **`r pct(e$estimate)` pp**, CI **`r ci(e)`**. This is a fitted discontinuity relative to age trends, not an individual's employment change between age 64 and 65. The interval describes uncertainty; it does not prove an independent retirement channel is absent. Finding a drop at 62 demonstrates sensitivity to that particular contrast, not adequate power to rule out all changes at 65. Placebo nonrejection is likewise limited evidence.
+
+**Removed claim:** multiplying the employment confidence limit by the descriptive healthcare-use difference between workers and non-workers does not establish a maximum retirement bias. A confidence interval is not a hard bound, non-employment is not retirement, and the descriptive gap need not bound a causal retirement effect. No “retirement explains at most” percentage is reported.
+
+# Check 4: race-by-education comparisons
+
+Groups are rebuilt from observed `educ` and `wnh`; missing education stays unclassified. The supplied grouping had assigned `r sum(is.na(win$educ)&!is.na(win$group_original))` main-window respondents with missing education to a group. They remain in the main outcome regressions but are excluded from this comparison.
+
+For each outcome and group, Medicare, employment and utilisation regressions use **the same respondents**, with observed outcome, Medicare, employment and education. This is a mechanism diagnostic on a matched sample, not a requirement to restrict the standalone sharp ITT to Medicare respondents. Descriptive pre-65 insurance rates use ages 63 to under 65, matching the fuzzy section; their nonmissing insurance counts are shown separately.
+
+```{r subgroups}
+sub <- do.call(rbind,lapply(c('sawdr','inhosp'),function(y)subgroup_analysis(d,y,H)))
+knitr::kable(data.frame(Outcome=rd_labels[sub$outcome],Group=sub$label,N=sub$N,
+  `N left/right`=paste(sub$n_left,sub$n_right,sep='/'),
+  `Medicare jump [CI], pp`=sprintf('%s [%s, %s]',pct(sub$mcare_jump),pct(sub$mcare_lo),pct(sub$mcare_hi)),
+  `Employment jump [CI], pp`=sprintf('%s [%s, %s]',pct(sub$emp_jump),pct(sub$emp_lo),pct(sub$emp_hi)),
+  `Pre-65 uninsured (%)`=pct(sub$pre_uninsured),`N for pre-65 insurance`=sub$N_pre_insurance,
+  check.names=FALSE),row.names=FALSE)
+```
+
+Larger outcome jumps where prior insurance is less common would be consistent with insurance gains, but a larger Medicare jump need not imply a larger utilisation response: some people switch from other insurance and group-specific effects can differ. Four noisy group estimates cannot distinguish or quantify insurance and retirement channels. An insignificant employment jump in every group would still not eliminate retirement. This comparison is exploratory, not a prediction preregistered before seeing outcomes.
+
+# What the checks support and what remains assumed
+
+The diagnostics address observed composition, response selection, age coding and recent employment. Their p-values do not certify causality. Unobserved counterfactual continuity, adequate measurement of the threshold, sufficiently benign selection and the absence of independent age-65 outcome channels remain substantive assumptions. The separate estimation report presents the local eligibility ITT, outcomes on their own samples, and sensitivity to h = 3–7, functional form, donuts, placebos and weights. The fuzzy section additionally needs exclusion for binary Medicare participation and monotonicity to interpret its ratio as a LATE.
+
+```{r export, include=FALSE}
+write.csv(flow,file.path(out,'sample_flow.csv'),row.names=FALSE)
+write.csv(response,file.path(out,'response_checks.csv'),row.names=FALSE)
+write.csv(balance,file.path(out,'balance_results.csv'),row.names=FALSE)
+write.csv(balance_h,file.path(out,'balance_bandwidths.csv'),row.names=FALSE)
+write.csv(employment,file.path(out,'employment_bandwidths.csv'),row.names=FALSE)
+write.csv(sub,file.path(out,'matched_subgroups.csv'),row.names=FALSE)
+write.csv(weight_audit(d),file.path(out,'weight_audit.csv'),row.names=FALSE)
+export_models(out)
+```
+
+# Reproducibility
+
+All displayed tables and graphs are generated in this Rmd. It reads the original SAS and `rd_functions_revised.R`; it does not read saved result CSVs or require another report to be knitted first. The outputs are convenient exports, not extra evidence or mandatory submission attachments. For a single-Rmd submission, the helper can be inlined when the report prose is separated from code. Data availability and required R packages must still be documented.
