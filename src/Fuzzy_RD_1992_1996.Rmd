@@ -1,0 +1,941 @@
+---
+title: "Medicare coverage and healthcare use near age 65"
+subtitle: "EC4305 Option 1 — Fuzzy regression discontinuity, 1992–1996"
+date: "27 October 2026"
+knit: |
+  (function(inputFile, ...) {
+    project <- dirname(normalizePath(inputFile, winslash = "/", mustWork = TRUE))
+    while (!file.exists(file.path(project, "data", "c9203.sas7bdat"))) {
+      parent <- dirname(project)
+      if (identical(parent, project)) stop("Cannot locate project data.")
+      project <- parent
+    }
+    rmarkdown::render(inputFile, output_dir = file.path(project, "output", "fuzzy_rd"), ...)
+  })
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: false
+    theme: readable
+    code_folding: hide
+    self_contained: true
+  word_document:
+    toc: false
+params:
+  data_dir: "data"
+  output_dir: "output/fuzzy_rd"
+  main_bandwidth: 5
+  show_code: false
+fontsize: 12pt
+geometry: margin=1in
+papersize: a4
+linestretch: 1.5
+---
+
+```{r setup, include=FALSE}
+# Run from the project root or use RStudio's Knit button in src/.
+# One-time setup, if needed:
+# install.packages(c("haven", "ggplot2", "knitr", "rmarkdown", "rdrobust"))
+# Render: rmarkdown::render("src/Fuzzy_RD_1992_1996.Rmd")
+# The entire analysis is in this file. Original data are never overwritten.
+project_root <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+while (!file.exists(file.path(project_root, "data", "c9203.sas7bdat"))) {
+  parent <- dirname(project_root)
+  if (identical(parent, project_root)) stop("Cannot locate the project data directory.")
+  project_root <- parent
+}
+project_path <- function(x) if (grepl("^(/|~|[A-Za-z]:)", x)) path.expand(x) else file.path(project_root, x)
+data_dir <- project_path(params$data_dir)
+output_dir <- project_path(params$output_dir)
+local_library <- file.path(project_root, ".R-library")
+if (dir.exists(local_library)) .libPaths(c(local_library, .libPaths()))
+needed <- c("haven", "ggplot2", "knitr", "rmarkdown", "rdrobust")
+absent <- needed[!vapply(needed, requireNamespace, logical(1), quietly = TRUE)]
+if (length(absent)) stop("Install these packages before knitting: ", paste(absent, collapse = ", "))
+library(ggplot2)
+knitr::opts_chunk$set(echo = params$show_code, message = FALSE, warning = TRUE,
+                      fig.width = 8, fig.height = 4.5, dpi = 160,
+                      fig.align = "center", out.width = "100%")
+options(scipen = 5, width = 100)
+stopifnot(is.numeric(params$main_bandwidth), params$main_bandwidth > 1,
+          params$main_bandwidth <= 9)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+out <- function(x) file.path(output_dir, x)
+fmt <- function(x, digits = 2) formatC(x, format = "f", digits = digits)
+int <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+ci_text <- function(lo, hi, scale = 100) paste0("[", fmt(scale * lo), ", ", fmt(scale * hi), "]")
+pv_text <- function(x) ifelse(is.na(x), NA_character_, ifelse(x < .001, "<0.001", fmt(x, 3)))
+save_table <- function(x, name) write.csv(x, out(paste0(name, ".csv")), row.names = FALSE)
+theme_set(theme_minimal(base_size = 12) + theme(legend.position = "bottom",
+  panel.grid.minor = element_blank(), plot.title = element_text(face = "bold")))
+model_samples <- list()
+rd_warnings <- character()
+quiet_rd <- function(...) withCallingHandlers(rdrobust::rdrobust(...), warning = function(w) {
+  rd_warnings <<- c(rd_warnings, conditionMessage(w))
+  invokeRestart("muffleWarning")
+})
+```
+
+```{r data-audit, include=params$show_code, results='hide'}
+raw_path <- file.path(data_dir, "c9203.sas7bdat")
+clean_path <- file.path(data_dir, "nhis_clean.csv")
+full_path <- file.path(data_dir, "nhis_clean_full.csv")
+stopifnot(file.exists(raw_path), file.exists(clean_path), file.exists(full_path))
+raw <- as.data.frame(haven::read_sas(raw_path))
+names(raw) <- tolower(names(raw))
+raw$.source_row <- seq_len(nrow(raw))
+raw$.input_source <- "Processed SAS"
+clean <- read.csv(clean_path, check.names = FALSE)
+clean_full <- read.csv(full_path, check.names = FALSE)
+names(clean) <- tolower(names(clean)); names(clean_full) <- tolower(names(clean_full))
+required <- c("year", "age4", "age", "post65", "wt", "sawdr", "inhosp", "mcare",
+              "covered2", "female", "wnh", "bnh", "hispanic", "onh", "educ", "region", "emp")
+stopifnot(all(required %in% names(raw)))
+# Hard restriction applies before every diagnostic and model.
+period <- subset(raw, !is.na(year) & year >= 1992 & year <= 1996)
+# Audit the new full CSV against the supplied SAS, before derived variables.
+source_observed <- subset(period, !is.na(sawdr))
+same_values <- function(a, b) {
+  length(a) == length(b) && identical(is.na(a), is.na(b)) &&
+    isTRUE(all.equal(as.numeric(a[!is.na(a)]), as.numeric(b[!is.na(b)]), tolerance = 1e-12))
+}
+common_full <- intersect(setdiff(names(raw), c(".source_row", ".input_source")), names(clean_full))
+csv_reconciliation <- data.frame(variable = common_full,
+  identical_values_and_missingness = vapply(common_full, function(v)
+    same_values(source_observed[[v]], clean_full[[v]]), logical(1)))
+stopifnot(nrow(source_observed) == nrow(clean_full),
+          all(csv_reconciliation$identical_values_and_missingness),
+          all(clean_full$year %in% 1992:1996))
+save_table(csv_reconciliation, "csv_sas_reconciliation")
+clean_full$.source_row <- source_observed$.source_row
+clean_full$.input_source <- "New full CSV (sawdr observed)"
+clean$.input_source <- "Legacy reduced CSV (ages 60-70)"
+clean_support <- range(clean_full$age4, na.rm = TRUE)
+stopifnot(isTRUE(all.equal(clean_support, range(period$age4, na.rm = TRUE))))
+base <- subset(period, is.finite(age4) & is.finite(wt) & wt > 0)
+prepare <- function(d) {
+  # Restore NHIS-recommended source fields: combo1.sas halved 1993 and 1996.
+  # 1993 remains a July-December sample, not an observed full year.
+  d$wt_replication <- d$wt
+  d$weight_restore_factor <- ifelse(d$year %in% c(1993, 1996), 2, 1)
+  d$wt_nhis <- d$wt_replication * d$weight_restore_factor
+  d$wt <- d$wt_nhis
+  d$weight_scheme <- "NHIS source-scale reconstruction"
+  d$wt_pool <- d$wt / 5
+  d$x <- d$age4 - 65
+  d$z <- as.integer(d$age4 >= 65)
+  d$year_factor <- factor(d$year)
+  d$region_factor <- factor(d$region)
+  # Years of schooling in this period: retain missing values.
+  d$lowed_checked <- ifelse(is.na(d$educ), NA_real_, as.numeric(d$educ < 12))
+  for (j in 1:4) d[[paste0("region", j)]] <- as.numeric(d$region == j)
+  for (j in 1993:1996) d[[paste0("year", j)]] <- as.numeric(d$year == j)
+  d
+}
+base <- prepare(base)
+clean <- prepare(subset(clean, year >= 1992 & year <= 1996 & is.finite(wt) & wt > 0))
+clean_full <- prepare(subset(clean_full, year >= 1992 & year <= 1996 & is.finite(wt) & wt > 0))
+binary <- c("sawdr", "inhosp", "mcare", "covered2", "female", "wnh", "bnh", "hispanic", "onh", "emp")
+stopifnot(all(vapply(base[binary], function(v) all(is.na(v) | v %in% 0:1), logical(1))),
+          all(base$year %in% 1992:1996), all(base$region %in% 1:4),
+          all(is.na(base$educ) | base$educ >= 0 & base$educ <= 20),
+          all(abs(base$age4 * 4 - round(base$age4 * 4)) < 1e-8),
+          all(rowSums(base[c("wnh", "bnh", "hispanic", "onh")]) == 1),
+          all(base$z == base$post65))
+# The legacy reduced CSV and the newly supplied full CSV are now DIFFERENT samples.
+stopifnot(all(base$age4 >= clean_support[1] & base$age4 <= clean_support[2]))
+sample_for <- function(d, y, treatment = "mcare", covariates = character()) {
+  vars <- unique(c(y, treatment, "age4", "year", "wt", "wt_pool", covariates))
+  droplevels(d[complete.cases(d[vars]), , drop = FALSE])
+}
+primary <- sample_for(base, "sawdr")
+secondary <- sample_for(base, "inhosp")
+base$observed_mcare <- as.numeric(!is.na(base$mcare))
+base$observed_sawdr <- as.numeric(!is.na(base$sawdr))
+base$observed_inhosp <- as.numeric(!is.na(base$inhosp))
+base$observed_educ <- as.numeric(!is.na(base$educ))
+base$included_primary <- as.numeric(!is.na(base$mcare) & !is.na(base$sawdr))
+age_disagree <- with(base, sum((age >= 65) != z, na.rm = TRUE))
+at65 <- subset(base, age4 == 65)
+audit_age <- do.call(rbind, lapply(sort(unique(subset(base, abs(x) <= .75)$age4)), function(a) {
+  s <- subset(base, age4 == a)
+  data.frame(age4 = a, N = nrow(s), whole_age_below65 = sum(s$age < 65),
+             whole_age_atleast65 = sum(s$age >= 65), medicare_pct = 100 * weighted.mean(s$mcare, s$wt, na.rm = TRUE))
+}))
+flow <- data.frame(Stage = c("Original replication file, all years (audit only)",
+  "1992–1996 only", "Valid quarterly age and positive survey weight",
+  "Doctor outcome and Medicare both observed, before bandwidth",
+  "Hospital outcome and Medicare both observed, before bandwidth",
+  "New full CSV: doctor response observed; ages 55.25-74.75",
+  "Legacy reduced CSV: complete cases, ages 60-70"),
+  N = c(nrow(raw), nrow(period), nrow(base), nrow(primary), nrow(secondary), nrow(clean_full), nrow(clean)))
+save_table(flow, "sample_flow")
+save_table(audit_age, "age_coding_audit")
+save_table(data.frame(variable = c("mcare", "sawdr", "inhosp", "educ"),
+  missing = vapply(base[c("mcare", "sawdr", "inhosp", "educ")], function(x) sum(is.na(x)), integer(1))), "missing_counts")
+save_table(data.frame(file = c(raw_path, clean_path, full_path),
+  md5 = unname(tools::md5sum(c(raw_path, clean_path, full_path)))), "input_checksums")
+```
+
+```{r estimation-functions, include=params$show_code, results='hide'}
+# Record actual positive-kernel-weight observations for every fitted regression.
+# N is a respondent count, never a sum of survey weights.
+audit_model <- function(input, complete, used, estimator, outcome, h, cutoff,
+                        covariates, p = 1, donut = -1, weighted = TRUE,
+                        label = "", b = NA_real_) {
+  upper_h <- if (is.na(b)) h else max(h, b)
+  stopifnot(cutoff - upper_h >= clean_support[1] - 1e-9,
+            cutoff + upper_h <= clean_support[2] + 1e-9,
+            all(used$age4 >= clean_support[1] & used$age4 <= clean_support[2]),
+            all(used$year %in% 1992:1996))
+  in_window <- with(input, is.finite(age4) & abs(age4 - cutoff) < h &
+                     abs(age4 - cutoff) > donut)
+  model_samples[[length(model_samples) + 1L]] <<- data.frame(
+    label = if (nzchar(label)) label else paste(estimator, outcome),
+    estimator = estimator, outcome = outcome,
+    required_variables = paste(unique(c(outcome, if (grepl("IV", estimator)) "mcare",
+      "age4", "year", "wt_pool", covariates)), collapse = ", "),
+    source = paste(unique(input$.input_source), collapse = "; "),
+    h = h, bias_bandwidth = b, cutoff = cutoff, polynomial = p, donut_excluded_through = donut,
+    controls = paste(covariates, collapse = ", "), year_FE = "year_factor" %in% covariates,
+    survey_weighted = weighted, weight_scheme = paste(unique(used$weight_scheme), collapse = "; "), N_input = nrow(input), N_complete_before_window = nrow(complete),
+    N_window_before_variable_drops = sum(in_window, na.rm = TRUE), N_used = nrow(used),
+    N_left = sum(used$age4 < cutoff), N_right = sum(used$age4 >= cutoff),
+    age_min = min(used$age4), age_max = max(used$age4),
+    inside_full_csv_age_range = TRUE, stringsAsFactors = FALSE)
+}
+
+# Transparent weighted local Wald estimator. The two regressions use identical
+# observations, regressors, bandwidth and weights. Its point estimate is exactly
+# identified weighted 2SLS. The influence function uses BOTH equations, including
+# their covariance; ordinary second-stage OLS standard errors would be wrong.
+local_wald <- function(d, y, treatment = "mcare", h, cutoff = 65, p = 1,
+                       covariates = "year_factor", weighted = TRUE, donut = -1,
+                       normalise_weights = TRUE, label = "") {
+  s <- sample_for(d, y, treatment, covariates)
+  complete <- s
+  s$x <- s$age4 - cutoff; s$z <- as.numeric(s$x >= 0)
+  s <- s[abs(s$x) < h & abs(s$x) > donut, , drop = FALSE]
+  survey_part <- if (weighted) s$wt_pool else rep(1, nrow(s))
+  if (normalise_weights) survey_part <- survey_part / mean(survey_part)
+  s$w <- survey_part * pmax(0, 1 - abs(s$x) / h)
+  audit_model(d, complete, s, "Fuzzy IV", y, h, cutoff, covariates,
+              p = p, donut = donut, weighted = weighted, label = label)
+  terms <- c("z", "x", "z:x", if (p == 2) c("I(x^2)", "z:I(x^2)"), covariates)
+  Q <- model.matrix(reformulate(terms), s)
+  n <- nrow(Q); k <- ncol(Q)
+  if (qr(Q)$rank < k) stop("Rank deficient design: ", y)
+  cells <- c(length(unique(s$x[s$x < 0])), length(unique(s$x[s$x >= 0])))
+  if (min(cells) < p + 2) stop("Too few distinct age cells for ", y)
+  bread <- solve(crossprod(Q, s$w * Q))
+  by <- drop(bread %*% crossprod(Q, s$w * s[[y]]))
+  bd <- drop(bread %*% crossprod(Q, s$w * s[[treatment]]))
+  names(by) <- names(bd) <- colnames(Q)
+  ey <- s[[y]] - drop(Q %*% by); ed <- s[[treatment]] - drop(Q %*% bd)
+  a <- drop(Q %*% bread[, "z"]) * s$w
+  pi <- bd["z"]; delta <- by["z"]; tau <- delta / pi
+  iy <- a * ey; id <- a * ed
+  it <- (iy - tau * id) / pi
+  hc <- n / (n - k)
+  se <- sqrt(hc * c(sum(iy^2), sum(id^2), sum(it^2)))
+  G <- length(unique(s$age4))
+  cr <- G / (G - 1) * (n - 1) / (n - k)
+  cse <- sqrt(cr * colSums(rowsum(cbind(iy, id, it), s$age4)^2))
+  # Independent algebra check against direct, just-identified IV normal equations.
+  X <- Q; X[, "z"] <- s[[treatment]]
+  direct_iv <- solve(crossprod(Q, s$w * X), crossprod(Q, s$w * s[[y]]))
+  stopifnot(abs(direct_iv["z", 1] - tau) < 1e-7)
+  # Same year/covariate distribution on both sides when reporting the fitted
+  # rate at the threshold. This is NOT the unobserved untreated complier mean.
+  Q0 <- Q
+  age_terms <- intersect(c("z", "x", "z:x", "I(x^2)", "z:I(x^2)"), colnames(Q0))
+  Q0[, age_terms] <- 0
+  qbar0 <- colSums(s$w * Q0) / sum(s$w)
+  baseline_y <- sum(qbar0 * by)
+  baseline_d <- sum(qbar0 * bd)
+  # Check the full HC1 covariance against direct IV score equations as well.
+  iv_bread <- solve(crossprod(Q, s$w * X))
+  iv_resid <- s[[y]] - drop(X %*% direct_iv)
+  iv_scores <- Q * (s$w * iv_resid)
+  iv_vcov <- hc * iv_bread %*% crossprod(iv_scores) %*% t(iv_bread)
+  stopifnot(abs(sqrt(iv_vcov["z", "z"]) - se[3]) < 1e-7,
+            all(s$year %in% 1992:1996))
+  list(tau = unname(tau), delta = unname(delta), pi = unname(pi),
+       se_rf = se[1], se_fs = se[2], se = se[3],
+       cluster_se_rf = cse[1], cluster_se_fs = cse[2], cluster_se = cse[3],
+       F = unname((pi / se[2])^2), cluster_F = unname((pi / cse[2])^2),
+       lo = unname(tau - qnorm(.975) * se[3]), hi = unname(tau + qnorm(.975) * se[3]),
+       n = n, n_left = sum(s$x < 0), n_right = sum(s$x >= 0), cells = cells,
+       p_value = 2 * pnorm(-abs(tau / se[3])),
+       baseline_y = baseline_y, baseline_d = baseline_d,
+       G = G, h = h, by = by, bd = bd, data = s, year_FE = "year_factor" %in% covariates)
+}
+local_jump <- function(d, y, h = params$main_bandwidth, cutoff = 65,
+                       year_fe = TRUE, label = "") {
+  s <- d[complete.cases(d[c(y, "age4", "year", "wt_pool", "year_factor")]), , drop = FALSE]
+  complete <- s
+  s$x <- s$age4 - cutoff; s$z <- as.numeric(s$x >= 0)
+  s <- s[abs(s$x) < h, , drop = FALSE]
+  s$w <- s$wt_pool / mean(s$wt_pool) * pmax(0, 1 - abs(s$x) / h)
+  audit_model(d, complete, s, "Outcome/diagnostic RD", y, h, cutoff,
+              if (year_fe) "year_factor" else character(), label = label)
+  Q <- model.matrix(if (year_fe) ~ z + x + z:x + year_factor else ~ z + x + z:x, s)
+  B <- solve(crossprod(Q, s$w * Q))
+  b <- drop(B %*% crossprod(Q, s$w * s[[y]])); names(b) <- colnames(Q)
+  e <- s[[y]] - drop(Q %*% b)
+  influence <- drop(Q %*% B[, "z"]) * s$w * e
+  se <- sqrt(nrow(s) / (nrow(s) - ncol(Q)) * sum(influence^2))
+  estimate <- unname(b["z"])
+  # A constant outcome (e.g. everyone has observed inhosp) has zero jump;
+  # do not turn floating-point residuals into an artificial significance test.
+  if (length(unique(s[[y]])) == 1L) { estimate <- 0; se <- 0 }
+  pvalue <- if (se == 0 && estimate == 0) 1 else 2 * pnorm(-abs(estimate / se))
+  data.frame(variable = y, estimate = estimate, se = se,
+    lo = estimate - qnorm(.975) * se, hi = estimate + qnorm(.975) * se,
+    p = pvalue, N = nrow(s), n_left = sum(s$x < 0), n_right = sum(s$x >= 0), cells_left = length(unique(s$x[s$x < 0])),
+    cells_right = length(unique(s$x[s$x >= 0])), year_FE = year_fe)
+}
+fit_rd <- function(s, y, h = params$main_bandwidth, b = params$main_bandwidth) {
+  # Inference sensitivity only: BOTH bandwidths fixed, no automatic selection.
+  audit_model(s, s, subset(s, abs(age4 - 65) < h), "Fixed-bandwidth RBC IV",
+              y, h, 65, "year_factor", b = b)
+  year_covs <- model.matrix(~ year_factor, s)[, -1, drop = FALSE]
+  quiet_rd(y = s[[y]], x = s$age4, c = 65, fuzzy = s$mcare,
+    weights = s$wt_pool / mean(s$wt_pool), p = 1, q = 2, h = h, b = b, covs = year_covs,
+    kernel = "triangular", masspoints = "adjust", vce = "nn")
+}
+rd_row <- function(f, outcome) data.frame(outcome = outcome,
+  estimate = f$coef[1, 1], bias_corrected = f$coef[3, 1], robust_se = f$se[3, 1],
+  lower95 = f$ci[3, 1], upper95 = f$ci[3, 2], robust_p = f$pv[3, 1],
+  first_stage = f$tau_T[1], first_stage_bias_corrected = f$tau_T[3],
+  first_stage_bc_lower95 = f$ci_T[3, 1], first_stage_bc_upper95 = f$ci_T[3, 2],
+  h_left = f$bws[1, 1], h_right = f$bws[1, 2], b_left = f$bws[2, 1], b_right = f$bws[2, 2],
+  n_left = f$N_h[1], n_right = f$N_h[2])
+wald_row <- function(f, label) data.frame(specification = label,
+  h = f$h, first_stage = f$pi, reduced_form = f$delta, estimate = f$tau,
+  se_HC1 = f$se, lower95 = f$lo, upper95 = f$hi, N = f$n,
+  N_left = f$n_left, N_right = f$n_right, year_FE = f$year_FE,
+  cells_left = f$cells[1], cells_right = f$cells[2], F_HC1 = f$F,
+  p_value = f$p_value, baseline_y = f$baseline_y)
+display_jumps <- function(t, labels) {
+  scale <- ifelse(t$variable == "educ", 1, 100)
+  data.frame(Variable = unname(labels[t$variable]),
+    `Jump` = fmt(t$estimate * scale),
+    `95% CI` = mapply(ci_text, t$lo, t$hi, scale),
+    `Raw p` = pv_text(t$p), `Holm p` = pv_text(t$p_holm), N = t$N,
+    `N left/right` = paste(t$n_left, t$n_right, sep = "/"), check.names = FALSE)
+}
+profile <- function(d, vars, labels, title, fits = NULL) {
+  points <- do.call(rbind, lapply(seq_along(vars), function(j) {
+    v <- vars[j]
+    dd <- if (is.list(d) && !is.data.frame(d)) d[[j]] else d
+    s <- dd[!is.na(dd[[v]]) & abs(dd$age4 - 65) <= params$main_bandwidth, ]
+    do.call(rbind, lapply(split(s, s$age4), function(a) data.frame(
+      age4 = a$age4[1], value = 100 * weighted.mean(a[[v]], a$wt),
+      variable = unname(labels[v]), n = nrow(a))))
+  }))
+  points$side <- ifelse(points$age4 < 65, "Below 65", "65 and above")
+  g <- ggplot(points, aes(age4, value, colour = side)) + geom_point(size = 1.6) +
+    geom_vline(xintercept = 65, linetype = "dashed", colour = "grey35") +
+    facet_wrap(~ variable, scales = "free_y", ncol = 2) +
+    scale_colour_manual(values = c("Below 65" = "#21618C", "65 and above" = "#B3471B")) +
+    labs(title = title, x = "Age in years (quarter-year cells)",
+         y = "Survey-weighted percentage", colour = NULL)
+  if (!is.null(fits)) {
+    lines <- do.call(rbind, lapply(seq_along(vars), function(j) {
+      f <- fits[[j]]; v <- vars[j]
+      do.call(rbind, lapply(0:1, function(z) {
+        x <- if (z == 0) seq(-f$h, 0, length.out = 100) else seq(0, f$h, length.out = 100)
+        b <- if (v == "mcare") f$bd else f$by
+        intercept <- if (v == "mcare") f$baseline_d else f$baseline_y
+        data.frame(age4 = x + 65, value = 100 * (intercept + b["z"] * z + b["x"] * x + b["z:x"] * z * x),
+          side = ifelse(z == 0, "Below 65", "65 and above"), variable = unname(labels[v]))
+      }))
+    }))
+    g <- g + geom_line(data = lines, linewidth = .7)
+  } else g <- g + geom_line(aes(group = side), linewidth = .4)
+  g
+}
+```
+
+```{r calculate-evidence, include=params$show_code, results='hide'}
+h_main <- params$main_bandwidth
+# Main and all sensitivity models include year fixed effects unless explicitly
+# labelled as no-year-FE sensitivities or year-composition diagnostics.
+main_wald <- local_wald(base, "sawdr", h = h_main, label = "Main doctor IV")
+hospital_wald <- local_wald(base, "inhosp", h = h_main, label = "Main hospital IV")
+main_table <- rbind(wald_row(main_wald, "Doctor visit in past year"),
+                   wald_row(hospital_wald, "Overnight hospital stay in past year"))
+save_table(main_table, "main_rd_results")
+save_table(main_table, "wald_decomposition")
+
+# Fixed-bandwidth RBC inference is supplementary, not a bandwidth selector.
+main_rd <- fit_rd(primary, "sawdr", h = h_main, b = h_main)
+hospital_rd <- fit_rd(secondary, "inhosp", h = h_main, b = h_main)
+stopifnot(abs(main_wald$tau - main_rd$coef[1, 1]) < 1e-6,
+          abs(main_wald$pi - main_rd$tau_T[1]) < 1e-6,
+          abs(hospital_wald$tau - hospital_rd$coef[1, 1]) < 1e-6)
+save_table(rbind(rd_row(main_rd, "Doctor visit"), rd_row(hospital_rd, "Hospital stay")),
+           "fixed_bandwidth_rbc_sensitivity")
+
+cov_labels <- c(female = "Female", wnh = "White non-Hispanic", bnh = "Black non-Hispanic",
+  hispanic = "Hispanic", onh = "Other non-Hispanic", educ = "Education (years)",
+  lowed_checked = "Below high school", region1 = "Northeast", region2 = "Midwest",
+  region3 = "South", region4 = "West")
+year_labels <- c(year1993 = "Interviewed in 1993", year1994 = "Interviewed in 1994",
+                 year1995 = "Interviewed in 1995", year1996 = "Interviewed in 1996")
+balance <- do.call(rbind, lapply(names(cov_labels), function(v) local_jump(primary, v)))
+balance$p_holm <- p.adjust(balance$p, "holm")
+balance_full <- do.call(rbind, lapply(names(cov_labels), function(v) local_jump(base, v)))
+balance_full$p_holm <- p.adjust(balance_full$p, "holm")
+# A year-share outcome must not be regressed on its own year indicators.
+balance_year <- do.call(rbind, lapply(names(year_labels), function(v)
+  local_jump(primary, v, year_fe = FALSE)))
+balance_year$p_holm <- p.adjust(balance_year$p, "holm")
+missing_labels <- c(observed_sawdr = "Doctor outcome observed", observed_inhosp = "Hospital outcome observed",
+  observed_mcare = "Medicare observed", observed_educ = "Education observed",
+  included_primary = "Doctor outcome and Medicare observed")
+missing_checks <- do.call(rbind, lapply(names(missing_labels), function(v) local_jump(base, v)))
+missing_checks$p_holm <- p.adjust(missing_checks$p, "holm")
+employment <- local_jump(base, "emp")
+employment_primary <- local_jump(primary, "emp")
+save_table(balance, "balance_primary_sample")
+save_table(balance_full, "balance_full_period_sample")
+save_table(balance_year, "year_composition")
+save_table(missing_checks, "response_and_inclusion_discontinuities")
+save_table(employment, "employment_discontinuity")
+save_table(employment_primary, "employment_primary_sample")
+missing_by_year <- do.call(rbind, lapply(split(base, base$year), function(d)
+  data.frame(year = d$year[1], N = nrow(d),
+    doctor_missing = sum(is.na(d$sawdr)), doctor_missing_pct = 100 * mean(is.na(d$sawdr)),
+    hospital_missing = sum(is.na(d$inhosp)), hospital_missing_pct = 100 * mean(is.na(d$inhosp)),
+    medicare_missing = sum(is.na(d$mcare)), medicare_missing_pct = 100 * mean(is.na(d$mcare)))))
+save_table(missing_by_year, "missingness_by_year")
+
+# These reduced forms are components of the fuzzy calculation, not a separate
+# sharp-RD analysis. Every row uses the outcome's matched coverage sample.
+components <- data.frame(outcome = main_table$specification,
+  baseline_below65 = main_table$baseline_y,
+  coverage_jump = main_table$first_stage,
+  coverage_se = c(main_wald$se_fs, hospital_wald$se_fs),
+  outcome_jump = main_table$reduced_form,
+  outcome_se = c(main_wald$se_rf, hospital_wald$se_rf),
+  outcome_jump_relative_pct = 100 * main_table$reduced_form / main_table$baseline_y,
+  fuzzy_estimate = main_table$estimate,
+  fuzzy_vs_overall_baseline_pct = 100 * main_table$estimate / main_table$baseline_y,
+  first_stage_F = main_table$F_HC1, N = main_table$N)
+save_table(components, "iv_components_and_baseline")
+
+# Fixed alternatives in years, chosen to assess locality versus precision.
+bandwidths <- sort(unique(c(3, 4, h_main, 6, 7)))
+bandwidth_results <- do.call(rbind, lapply(bandwidths, function(h)
+  wald_row(local_wald(primary, "sawdr", h = h), paste0("h = ", h, " years"))))
+hospital_bandwidths <- do.call(rbind, lapply(bandwidths, function(h)
+  wald_row(local_wald(secondary, "inhosp", h = h), paste0("h = ", h, " years"))))
+save_table(bandwidth_results, "bandwidth_sensitivity")
+save_table(hospital_bandwidths, "hospital_bandwidth_sensitivity")
+covariates <- c("female", "bnh", "hispanic", "onh", "educ", "region_factor", "year_factor")
+adjust_sample <- sample_for(base, "sawdr", covariates = covariates)
+adjust_uncontrolled <- local_wald(adjust_sample, "sawdr", h = h_main)
+adjusted <- local_wald(adjust_sample, "sawdr", h = h_main, covariates = covariates)
+quadratic <- local_wald(primary, "sawdr", h = h_main, p = 2)
+unweighted <- local_wald(primary, "sawdr", h = h_main, weighted = FALSE)
+donut_zero <- local_wald(primary, "sawdr", h = h_main, donut = 0)
+donut_quarter <- local_wald(primary, "sawdr", h = h_main, donut = .25)
+clean_fit <- local_wald(clean_full, "sawdr", h = h_main, label = "Doctor IV: new full CSV")
+legacy_clean_fit <- local_wald(clean, "sawdr", h = h_main, label = "Doctor IV: legacy reduced CSV")
+hospital_csv_fit <- local_wald(clean_full, "inhosp", h = h_main, label = "Hospital IV: new CSV, conditional on doctor response")
+no_year_fit <- local_wald(primary, "sawdr", h = h_main, covariates = character(), label = "Doctor IV: no year FE sensitivity")
+# Preserve the earlier replication weighting as a clearly labelled alternative.
+replication_sample <- function(d) {
+  d$wt <- d$wt_replication; d$wt_pool <- d$wt / 5
+  d$weight_scheme <- "Supplied replication weights"
+  d
+}
+replication_doctor <- local_wald(replication_sample(primary), "sawdr", h = h_main,
+                                label = "Doctor IV: supplied replication weights")
+replication_hospital <- local_wald(replication_sample(secondary), "inhosp", h = h_main,
+                                  label = "Hospital IV: supplied replication weights")
+no1993_doctor <- local_wald(subset(primary, year != 1993), "sawdr", h = h_main,
+                           label = "Doctor IV: exclude partial-year 1993")
+no1993_hospital <- local_wald(subset(secondary, year != 1993), "inhosp", h = h_main,
+                             label = "Hospital IV: exclude partial-year 1993")
+weight_sensitivity <- rbind(
+  wald_row(main_wald, "Doctor: NHIS source-scale main"),
+  wald_row(replication_doctor, "Doctor: supplied replication weights"),
+  wald_row(no1993_doctor, "Doctor: exclude partial-year 1993"),
+  wald_row(hospital_wald, "Hospital: NHIS source-scale main"),
+  wald_row(replication_hospital, "Hospital: supplied replication weights"),
+  wald_row(no1993_hospital, "Hospital: exclude partial-year 1993"))
+save_table(weight_sensitivity, "nhis_weight_sensitivity")
+stopifnot(main_wald$n == clean_fit$n,
+          identical(sort(main_wald$data$.source_row), sort(clean_fit$data$.source_row)),
+          abs(main_wald$tau - clean_fit$tau) < 1e-10, abs(main_wald$se - clean_fit$se) < 1e-10)
+
+# Verify common rescaling with UNnormalised weights, including the IV covariance.
+annual_scale <- primary; annual_scale$wt_pool <- annual_scale$wt
+scale_raw <- local_wald(annual_scale, "sawdr", h = h_main, normalise_weights = FALSE,
+                       label = "Weight-scale audit: wt")
+scale_pool <- local_wald(primary, "sawdr", h = h_main, normalise_weights = FALSE,
+                        label = "Weight-scale audit: wt/5")
+scale_fields <- c("tau", "delta", "pi", "se", "se_rf", "se_fs")
+weight_scale_audit <- data.frame(quantity = scale_fields,
+  using_wt = unlist(scale_raw[scale_fields]), using_wt_over5 = unlist(scale_pool[scale_fields]))
+weight_scale_audit$absolute_difference <- abs(weight_scale_audit$using_wt - weight_scale_audit$using_wt_over5)
+stopifnot(max(weight_scale_audit$absolute_difference) < 1e-9)
+save_table(weight_scale_audit, "weight_scale_invariance")
+specifications <- rbind(wald_row(main_wald, "Main: linear age trends + year FE"),
+  wald_row(quadratic, "Quadratic age trends + year FE"),
+  wald_row(adjust_uncontrolled, "Control-complete sample: year FE only"),
+  wald_row(adjusted, "Same sample: demographics + year FE"),
+  wald_row(unweighted, "Unweighted + year FE"),
+  wald_row(donut_zero, "Exclude age4 = 65; year FE"),
+  wald_row(donut_quarter, "Exclude 64.75–65.25; year FE"),
+  wald_row(clean_fit, "New full CSV + year FE"),
+  wald_row(legacy_clean_fit, "Legacy reduced CSV + year FE"),
+  wald_row(no_year_fit, "No year effects: diagnostic sensitivity"),
+  wald_row(replication_doctor, "Supplied replication weights + year FE"),
+  wald_row(no1993_doctor, "Exclude partial-year 1993 + year FE"))
+save_table(specifications, "specification_sensitivity")
+csv_sharp_doctor <- local_jump(clean_full, "sawdr", label = "Group sharp doctor sample: replication check")
+csv_sharp_hospital <- local_jump(clean_full, "inhosp", label = "Old doctor-selected hospital sample")
+source_sharp_hospital <- local_jump(base, "inhosp", label = "Revised sharp hospital: own-outcome sample")
+matched_doctor_rf <- local_jump(primary, "sawdr", label = "Doctor numerator: IV-matched sharp fit")
+matched_hospital_rf <- local_jump(secondary, "inhosp", label = "Hospital numerator: IV-matched sharp fit")
+stopifnot(abs(matched_doctor_rf$estimate - main_wald$delta) < 1e-10,
+          abs(matched_hospital_rf$estimate - hospital_wald$delta) < 1e-10)
+reconciliation_rows <- function(label, d, vars, numerator, denominator = NA_real_) {
+  a <- d[complete.cases(d[vars]), , drop = FALSE]
+  w <- subset(a, abs(age4 - 65) < h_main)
+  data.frame(Analysis = label, Required = paste(vars, collapse = ", "),
+    N_before_window = nrow(a), N_left = sum(w$age4 < 65), N_right = sum(w$age4 >= 65),
+    N = nrow(w), Outcome_jump = numerator, Medicare_jump = denominator,
+    IV_ratio = if (is.na(denominator)) NA_real_ else numerator / denominator)
+}
+common_needed <- c("age4", "year", "wt")
+sample_comparison <- rbind(
+  reconciliation_rows("Sharp doctor: new CSV, outcome observed", clean_full,
+    c("sawdr", common_needed), csv_sharp_doctor$estimate),
+  reconciliation_rows("Fuzzy doctor: SAS or new full CSV", base,
+    c("sawdr", "mcare", common_needed), main_wald$delta, main_wald$pi),
+  reconciliation_rows("Revised sharp hospital: own-outcome source sample", base,
+    c("inhosp", common_needed), source_sharp_hospital$estimate),
+  reconciliation_rows("Old sharp hospital: doctor-response CSV restriction", clean_full,
+    c("inhosp", common_needed), csv_sharp_hospital$estimate),
+  reconciliation_rows("Fuzzy hospital: all hospital/Medicare responses", base,
+    c("inhosp", "mcare", common_needed), hospital_wald$delta, hospital_wald$pi),
+  reconciliation_rows("Fuzzy hospital: also require doctor response", clean_full,
+    c("inhosp", "mcare", common_needed), hospital_csv_fit$delta, hospital_csv_fit$pi))
+save_table(sample_comparison, "sharp_fuzzy_sample_reconciliation")
+hospital_sample_sensitivity <- rbind(wald_row(hospital_wald, "Main: outcome-specific SAS sample"),
+  wald_row(hospital_csv_fit, "New full CSV: additionally require sawdr observed"))
+save_table(hospital_sample_sensitivity, "hospital_sample_sensitivity")
+employment_csv <- local_jump(clean_full, "emp", label = "Employment: group's doctor-response sample")
+employment_comparison <- rbind(
+  cbind(Sample = "Source sample before doctor/Medicare exclusions", employment),
+  cbind(Sample = "New CSV: doctor response observed", employment_csv),
+  cbind(Sample = "Primary IV: doctor and Medicare observed", employment_primary))
+save_table(employment_comparison, "employment_sample_comparison")
+annual_weights <- do.call(rbind, lapply(split(base, base$year), function(d)
+  data.frame(year = d$year[1], N = nrow(d), restore_factor = d$weight_restore_factor[1],
+    sum_replication_wt = sum(d$wt_replication), sum_nhis_source_weight = sum(d$wt_nhis),
+    sum_wt_over5 = sum(d$wt_pool))))
+save_table(annual_weights, "weight_totals_audit")
+
+# At a false cutoff, use an outcome jump, never a fuzzy ratio with a weak or
+# nonexistent first stage. Windows cannot cross or contain the true cutoff.
+placebos <- do.call(rbind, lapply(c(63, 64, 66, 67), function(cut) {
+  hp <- min(1.5, abs(cut - 65) - .01)
+  do.call(rbind, lapply(c("sawdr", "inhosp"), function(v) {
+    d <- if (v == "sawdr") primary else secondary
+    d <- if (cut < 65) subset(d, age4 < 65) else subset(d, age4 > 65)
+    a <- local_jump(d, v, h = hp, cutoff = cut)
+    a$cutoff <- cut; a$h <- hp; a
+  }))
+}))
+placebos$p_holm <- p.adjust(placebos$p, "holm")
+save_table(placebos, "placebo_cutoffs")
+
+# Race/education mechanisms: all three jumps within a group use the same people,
+# bandwidth, kernel and year fixed effects. covered2 is descriptive ONLY.
+group_sample <- subset(primary, !is.na(lowed_checked))
+group_sample$subgroup <- paste(ifelse(group_sample$wnh == 1, "White non-Hispanic", "Other race/ethnicity"),
+  ifelse(group_sample$lowed_checked == 1, "below high school", "high school or more"), sep = ", ")
+subgroups <- do.call(rbind, lapply(split(group_sample, group_sample$subgroup), function(d) {
+  f <- local_wald(d, "sawdr", h = h_main)
+  e <- local_jump(d, "emp")
+  stopifnot(e$N == f$n)
+  before <- subset(f$data, age4 >= 63 & age4 < 65)
+  data.frame(group = d$subgroup[1],
+    pre65_any_insurance = weighted.mean(before$covered2, before$wt, na.rm = TRUE),
+    pre65_any_N = sum(!is.na(before$covered2)),
+    first_stage = f$pi, se_fs = f$se_fs,
+    fs_lo = f$pi - qnorm(.975) * f$se_fs, fs_hi = f$pi + qnorm(.975) * f$se_fs,
+    reduced_form = f$delta, se_rf = f$se_rf,
+    rf_lo = f$delta - qnorm(.975) * f$se_rf, rf_hi = f$delta + qnorm(.975) * f$se_rf,
+    employment_jump = e$estimate, employment_lo = e$lo, employment_hi = e$hi,
+    N = f$n, N_left = f$n_left, N_right = f$n_right)
+}))
+save_table(subgroups, "subgroup_mechanism_checks")
+sg_largest <- subgroups[which.max(subgroups$reduced_form), ]
+sg_smallest <- subgroups[which.min(subgroups$reduced_form), ]
+sg_low_ins <- subgroups[which.min(subgroups$pre65_any_insurance), ]
+sg_fs_largest <- subgroups[which.max(subgroups$first_stage), ]
+sg_emp_flags <- sum(subgroups$employment_lo > 0 | subgroups$employment_hi < 0)
+supplied_group_missing_educ <- sum(is.na(clean_full$educ) & !is.na(clean_full$group))
+supplied_group_missing_educ_window <- sum(is.na(clean_full$educ) & !is.na(clean_full$group) &
+                                           abs(clean_full$x) < h_main)
+
+labels <- c(mcare = "Medicare coverage", sawdr = "Doctor visit in past year",
+            inhosp = "Overnight hospital stay")
+p_first <- profile(primary, "mcare", labels, "Medicare coverage near age 65", list(main_wald))
+p_outcomes <- profile(list(primary, secondary), c("sawdr", "inhosp"), labels,
+  "Utilisation profiles for the IV numerator", list(main_wald, hospital_wald))
+p_emp <- profile(base, "emp", c(emp = "Currently employed"), "Employment around the Medicare threshold")
+counts <- as.data.frame(table(subset(base, abs(x) <= h_main)$age4))
+names(counts) <- c("age4", "N"); counts$age4 <- as.numeric(as.character(counts$age4))
+p_counts <- ggplot(counts, aes(age4, N)) + geom_col(width = .2, fill = "#21618C") +
+  geom_vline(xintercept = 65, linetype = "dashed") +
+  labs(title = "Observed sample counts by quarterly age", x = "Age in years", y = "Respondents")
+p_bandwidth <- ggplot(bandwidth_results, aes(h, 100 * estimate)) +
+  geom_hline(yintercept = 0, colour = "grey45", linetype = "dashed") +
+  geom_errorbar(aes(ymin = 100 * lower95, ymax = 100 * upper95), width = .12) +
+  geom_point(size = 2) + labs(title = "Doctor-visit IV estimates across fixed windows",
+  x = "Half-window in years (all models include year fixed effects)",
+  y = "Fuzzy-RD estimate (percentage points)")
+for (nm in c("p_first", "p_outcomes", "p_emp", "p_counts", "p_bandwidth")) {
+  ggsave(out(paste0(sub("p_", "", nm), ".png")), get(nm), width = 8, height = 4.5, dpi = 200)
+}
+model_sample_table <- do.call(rbind, model_samples)
+save_table(model_sample_table, "model_sample_sizes")
+save_table(data.frame(h = bandwidths, lower_limit = 65 - bandwidths,
+  upper_limit = 65 + bandwidths, full_csv_min = clean_support[1], full_csv_max = clean_support[2],
+  inside_range = 65 - bandwidths >= clean_support[1] & 65 + bandwidths <= clean_support[2]),
+  "bandwidth_support_audit")
+save_table(data.frame(warning = unique(rd_warnings)), "rdrobust_warnings")
+capture.output(sessionInfo(), file = out("R_session_info.txt"))
+saveRDS(list(main_wald = main_wald[c("tau", "delta", "pi", "se", "F", "cluster_F", "h", "cells", "baseline_y")],
+  hospital_wald = hospital_wald[c("tau", "delta", "pi", "se", "F", "h", "baseline_y")],
+  fixed_rbc_doctor = main_rd, fixed_rbc_hospital = hospital_rd,
+  balance = balance, response = missing_checks, sensitivity = specifications,
+  sample_comparison = sample_comparison, weight_scale_audit = weight_scale_audit), out("model_results.rds"))
+```
+This section covers the **fuzzy-RD/IV extension only** for Option 1. Eligibility at 65 is the instrument, Medicare participation (`mcare`) is the sole endogenous treatment, and the outcomes are doctor visits (primary) and overnight hospital stays (secondary). The group's standalone eligibility analysis belongs in its sharp-RD section; the reduced forms here are components of the IV calculation, estimated on its matched samples. All analyses use **1992–1996**. Strong relevance does not establish exclusion, so the coverage-effect interpretation remains conditional.
+
+We use the processed NHIS replication data and age-65 design from [Card, Dobkin and Maestas (2008)](https://pmc.ncbi.nlm.nih.gov/articles/PMC2600774/). Our choices are the restricted period, a fixed five-year local linear window with year effects, outcome-specific samples, and an explicit IV credibility assessment. We implement the employment and race-by-education checks ourselves in this restricted sample. These are our empirical checks for this project, not a claim that the original paper omitted such diagnostics. This section is not an exact replication of its wider-age quadratic NHIS estimates.
+
+# 2.3 Identification Strategy
+
+## The comparison and the counterfactual
+
+An insured–uninsured comparison confounds insurance with health, employment and resources. A broad over-65–under-65 comparison also confounds Medicare with ageing. We instead compare age profiles immediately around the eligibility threshold. The counterfactual is healthcare use near 65 if the age-based opportunity to enter Medicare did not change, while underlying age and cohort trends continued smoothly. We do **not** assume that everyone aged 62 is exchangeable with everyone aged 68.
+
+Let $A_i=\texttt{age4}_i-65$, $Z_i=1(A_i\geq0)$ and $D_i=\texttt{mcare}_i$. The primary $Y_i$ is `sawdr`, an indicator of **any doctor visit in the previous 12 months**, not a count or specifically a preventive visit. `inhosp` is the secondary outcome. Crossing the threshold changes eligibility sharply in the conceptual design, but only raises the probability of coverage: some people already receive Medicare below 65, while others do not enrol immediately. This motivates a fuzzy rather than a sharp assignment of **coverage**.
+
+The proposed estimand is
+
+$$\tau_{FRD}=\frac{\Delta_Y}{\Delta_D},\qquad
+\Delta_V=\lim_{a\downarrow0}E[V_i\mid A_i=a]-\lim_{a\uparrow0}E[V_i\mid A_i=a].$$
+
+Here $V_i$ means the value of whichever variable we are examining for respondent $i$; it is a placeholder, not an additional data column: set $V_i=Y_i$ for the utilisation jump and $V_i=D_i$ for the coverage jump. Each jump is the fitted rate just above 65 minus the rate just below, not a before-and-after change observed for the same person.
+
+Under the assumptions below, this is a **local average treatment effect for coverage compliers at 65**: people who would enter Medicare when offered age-based eligibility but would not otherwise be covered at that age. Their counterfactual may be private coverage, another public plan or no insurance. They are not necessarily previously uninsured. Survey weighting targets the corresponding weighted local complier population. Neither this estimand nor the eligibility effect is an ATE for all older Americans. The sharp outcome jump is a **local ITT of eligibility** under the RD assumptions, equivalently an average effect of the eligibility rule at the cutoff. Our ratio is a **coverage LATE**, not the ATT among everyone enrolled or a population coverage ATE. With heterogeneous effects across years it concerns the weighted local compliers represented by the available survey periods, subject to the specified pooled age curves and selection assumptions.
+
+## Establish the sample before interpreting a discontinuity
+
+We use the original **processed replication file**, retaining its ages 55.25–74.75 so wider sensitivity windows remain possible; the main IV fit subsequently uses $|A_i|<5$. At exactly ages 60 and 70 the triangular kernel has zero weight. Outcome-specific samples require that outcome, `mcare`, age, year and weight to be observed. Missing education only removes a person from an education check or adjusted model, not the baseline IV. The **updated `nhis_clean_full.csv` contains `r int(nrow(clean_full))` respondents aged `r min(clean_full$age4)`–`r max(clean_full$age4)`** and drops only missing `sawdr` within this period. Its `r length(common_full)` original columns agree row by row with the corresponding SAS observations, including retained missing Medicare and education responses. After the same Medicare requirement, its doctor-visit IV coefficient, standard error and respondent rows match the SAS fit. The older `nhis_clean.csv` remains a different, narrower complete-case sample; it is labelled as a legacy sensitivity, not confused with the new full CSV.
+
+**Why stop at 1996?** The group's data review identified two distinct later-period concerns: doctor-visit data come from the Sample Adult component from 1997, while the supplied coding may omit positive visit categories from 2000. Following the group's scope decision, we exclude 1997–2003 before every model and diagnostic. This avoids exposure to those later issues; it does **not** repair their coding or establish an error in the published paper. The professor's later-period recoding, Sample Adult weight verification and 1997–2003 comparison therefore remain outside this section. We reconstruct the documented pre-1997 source-weight scales from the supplied replication weights and include supplied-weight and unweighted sensitivities; we make no claim about their suitability for later Sample Adult analyses.
+
+Within 1992–1996, there are **`r int(sum(is.na(base$sawdr)))` missing doctor responses** and **`r int(sum(is.na(base$inhosp)))` missing hospital responses** before outcome-specific selection. We do not assume these remaining missing values are missing by design. The response-indicator checks below and year-by-year counts in Appendix A document them separately.
+
+**Weights and their provenance.** Using all available survey years up to 1996 still uses a survey sample, not a census. The supplied person weights therefore remain relevant to the population represented by the observations. We multiply them by the triangular kernel: survey weights address representation, while kernel weights give greater emphasis to observations near 65. Neither creates causal identification. The unweighted sensitivity shows how much the result depends on this weighting choice; the absence of survey-design identifiers still limits variance estimation.
+
+The pre-1997 weight is person-based, not a post-1997 Sample Adult weight. A deeper audit distinguishes the NHIS source field from the supplied replication weight. The preparation programme `combo1.sas` divides both the 1993 semiannual field and the 1996 annual field by two before `wt = fbwa` ([preparation code](https://www.openicpsr.org/openicpsr/project/113278/version/V1/view?path=/openicpsr/113278/fcr:versions/V1/nhis/read9296/combo1.sas&type=file)). The [1993 NCHS insurance documentation](https://ftp.cdc.gov/pub/health_statistics/nchs/Dataset_Documentation/NHIS/1993/HEALTHIN.pdf), pp. 1–2, recommends its semiannual field for its July–December interviews. The [1996 NCHS insurance documentation](https://ftp.cdc.gov/pub/health_statistics/nchs/dataset_documentation/NHIS/1996/healthin.pdf), pp. 1–2, recommends its annual field, already adjusted for the smaller sample. Accordingly, **the revised main analysis restores these source-weight scales: `wt_nhis = 2 * wt_replication` in 1993 and 1996, and `wt_nhis = wt_replication` otherwise**. This is reconstructed from the archived code rather than newly matched to original NHIS records. All input files remain unchanged. The old relative weighting is retained as a sensitivity, not labelled NHIS's recommended pooled weighting.
+
+In analysis memory, `wt` denotes the restored weight, while `wt_replication` preserves the supplied value. We define `wt_pool = wt / 5`, normalise by the estimation-sample mean, and multiply by the triangular kernel. Division by years is a [standard pooling convention](https://nhis.ipums.org/nhis/userNotes_weights.shtml). The common division and normalisation leave coefficients and HC1 standard errors unchanged, as verified numerically. **Restoring only two years changes relative weights and can change estimates**; this is different from dividing everyone by five. The original outcome programme uses `weight wt;` without a common pooled-years divisor ([original programme](https://www.openicpsr.org/openicpsr/project/113278/version/V1/view?path=/openicpsr/113278/fcr:versions/V1/table3/table3-pt2.sas&type=file)). We distinguish its specification from our revised population-weighted implementation, without alleging that a different weighting target invalidates the published paper.
+
+**1993 is not a complete interview year.** Restoring its weight cannot supply January–June interviews or remove seasonal differences. Our pooled target is the mixture of available survey periods, with population-based source weights, rather than an exact average of five complete annual populations. Appendix D includes an exclusion-of-1993 sensitivity for both outcomes. Missing responses and the 1995 design change remain limitations; no national total is reported from these restricted samples.
+
+**Question comparability and year effects.** The underlying pre-1997 item asks how long since contact with a medical doctor or assistant; it includes contacts during hospital stays. Its wording and universe are in the same 1982–1996 regime, with person weighting, according to [NHIS variable documentation](https://nhis.ipums.org/nhis-action/variables/DVINT). The replication code applies the same `lastdoc == 1` recode in each of 1992–1996, preserving category 5 as missing; the [1996 NCHS codebook](https://ftp.cdc.gov/pub/health_statistics/nchs/dataset_documentation/NHIS/1996/nhiscore.pdf) identifies these as less than one year and unknown. Thus `sawdr` is not specifically an outpatient office visit. Year effects are retained to absorb year-level differences in coverage, healthcare use and survey composition, not because this five-year sample spans the 1997 question change. They are useful adjustment, not a logically necessary RD assumption or a remedy for the 1995 survey redesign. An explicitly labelled no-year-effects sensitivity shows their empirical influence.
+
+```{r sample-flow}
+knitr::kable(flow, caption = "Table 1. Sample construction; bandwidth restrictions are applied subsequently.")
+```
+
+**Why the sharp and fuzzy sample sizes differ.** A standalone sharp RD for `sawdr` requires the outcome, age, year and weight; it does not require Medicare coverage to be observed. The fuzzy RD additionally requires `mcare`. In the main window, the group's sharp doctor analysis therefore has **`r int(csv_sharp_doctor$N)`** respondents, versus **`r int(main_wald$n)`** for our matched doctor first stage and numerator. The difference is **`r int(csv_sharp_doctor$N - main_wald$n)`** missing Medicare reports. Dividing the group's larger-sample outcome jump by our smaller-sample coverage jump would not be the matched-sample Wald estimator.
+
+The secondary hospital IV uses **`r int(hospital_wald$n)`** respondents because missing `sawdr` need not exclude an observed hospital outcome. The revised group hospital sharp regression now also uses its own outcome-specific source sample; Appendix D retains the old doctor-selected sample as a comparison. Appendix D reconciles these samples, gives left/right counts, and reports a hospital sensitivity with the additional doctor-response requirement. Every model's actual positive-weight sample, required controls, age limits and year-effects status is exported to `model_sample_sizes.csv`. N always counts people, not weighted population totals.
+
+
+Two measurement checks materially qualify the design. First, the supplied `post65` agrees with `age4 >= 65`, but this constructed indicator disagrees with `age >= 65` for **`r int(age_disagree)` respondents** in 1992–1996. At `age4 = 65`, **`r int(sum(at65$age < 65))` of `r int(nrow(at65))`** report whole-year age below 65. We retain the group's quarterly running variable and coding in the baseline, disclose the discrepancy, and examine exclusions around 65. Neither age measure can simply be declared the truth. This is measurement ambiguity, **not evidence that respondents can manipulate biological age**. A causal interpretation additionally needs the observed threshold to represent the true eligibility change adequately; continuity alone does not repair misclassification ([Dong and Kolesár, 2023](https://arxiv.org/abs/2111.07388)).
+
+Second, a newly covered respondent's past-year visit indicator mostly describes time **before** Medicare. In a simple model where Medicare changes the ongoing rate of visits, the accumulated effect starts near zero and grows with exposure duration; a level jump in a trailing-year outcome need not equal a full-year treatment effect. Anticipatory postponement or recall can also change the profile. The ratio below is therefore a conditional local coverage-effect estimate for the **reported retrospective outcome**, not an established effect of twelve months of Medicare. The original research also discusses this timing issue ([Card, Dobkin and Maestas, 2004 working paper, section IV](https://davidcard.berkeley.edu/papers/Impact%20of%20NUI.pdf)).
+
+## Continuity and local instrument exogeneity
+
+**Assumption.** In the absence of the eligibility change, the potential-outcome means and the distribution of potential coverage types vary smoothly through age 65. This supplies the local exogeneity argument for the instrument. We are not claiming that $Z$ is randomly assigned globally: it is mechanically determined by age.
+
+**Why plausible here.** Biological ageing is gradual, people cannot choose their birthday, and sex, race and completed schooling should not abruptly change at a birthday. Year composition should also be smooth in these pooled repeated cross-sections. **What could fail.** Survey response, missing insurance reports, migration, institutionalisation, selective survival or another age-based rule could alter the observed sample or untreated outcomes at the same threshold. Current region is a useful composition check, but is less firmly predetermined than sex or race: retirement-related moves are possible.
+
+We check demographic, education and region continuity in the actual doctor-visit IV sample, using the **same fixed five-year bandwidth, triangular weights and year fixed effects as the main model**. Year-share continuity is checked separately without year fixed effects, because a year indicator cannot meaningfully be tested while controlling for itself. Education uses years of schooling; below-high-school status is rebuilt as `educ < 12`, preserving missingness. All binary jumps are percentage points. Holm p-values address the family of balance tests; their confidence intervals are pointwise, not simultaneous.
+
+```{r covariate-balance}
+knitr::kable(display_jumps(balance, cov_labels),
+  caption = "Table 2. Covariate continuity in the primary IV sample. Five-year window and year fixed effects. HC1 intervals; education in years, other jumps in percentage points.")
+```
+
+There are **`r sum(balance$p_holm < .05)` of `r nrow(balance)`** balance checks below the 5% Holm threshold. `r if (any(balance$p_holm < .05)) paste0("The flagged variables are ", paste(unname(cov_labels[balance$variable[balance$p_holm < .05]]), collapse = ", "), ". This weakens a simple local-comparability argument and must be assessed alongside effect sizes and sensitivity to controls.") else "This provides some support for observed compositional continuity, but does not establish balance in unobserved health needs or rule out economically meaningful differences within the intervals."` A p-value above .05 is not evidence of equivalence. The appendix also checks the unrestricted period sample so complete-case selection cannot conceal the entire assessment.
+
+**Selection assumption.** Within the observed sample, selection must not create a cutoff jump in untreated outcomes or complier composition. Extending the estimate to the broader population additionally requires nonresponse to be sufficiently ignorable; smooth response rates alone do not establish this. Missing insurance and outcomes stay missing, rather than being coded as zero.
+
+```{r missingness-evidence}
+knitr::kable(display_jumps(missing_checks, missing_labels),
+  caption = "Table 3. Response and inclusion jumps in the original 1992–1996 sample, before dropping missing outcomes. Same five-year window and year fixed effects as the main IV. Percentage points; HC1 intervals.")
+```
+
+`r if (any(missing_checks$p_holm < .05)) paste0("There are ", sum(missing_checks$p_holm < .05), " flagged missingness/inclusion checks after Holm adjustment. The estimated discontinuity therefore needs an explicit selection qualification; population weighting does not remove outcome-dependent missingness.") else "The response checks do not reject continuity after multiplicity adjustment. They remain incomplete evidence: the unobserved values of missing responses cannot be tested."`
+
+The doctor-response check uses an indicator equal to one when `sawdr` is observed, as requested in the feedback. It must use the source sample before excluding missing `sawdr`, or the indicator would be identically one. Its fitted age, year and weighting specification matches the main IV reduced form. The hospital-response check is separate; with no missing hospital responses it is constant, so a zero fitted jump is mechanical, not a substantive validation of other outcomes' response processes.
+
+The age-cell counts in Appendix A assess sampling irregularities. Because `age4` is discrete, a standard continuous-running-variable density test is not treated as valid certification of no sorting. This is also not a panel design: a DiD pre-trend test is not the identifying diagnostic here.
+
+## IV assumption 1 — Relevance
+
+**Assumption.** $\Delta_D>0$: the eligibility threshold increases the probability of Medicare coverage. Otherwise the denominator cannot identify a coverage effect. The age-based programme rule makes a positive first stage plausible, while disability-related coverage below 65 and incomplete take-up above 65 explain why it is not one-for-one ([Card, Dobkin and Maestas, 2004](https://davidcard.berkeley.edu/papers/Impact%20of%20NUI.pdf)).
+
+```{r first-stage-figure, fig.cap="Figure 1. Quarterly survey-weighted Medicare means in the primary IV sample. Lines use the fixed five-year fit, standardised to a common year distribution."}
+p_first
+```
+
+In the main five-year, year-adjusted IV sample, Medicare coverage increases by **`r fmt(100 * main_wald$pi)` percentage points**, with HC1 95% CI **`r ci_text(main_wald$pi - 1.96 * main_wald$se_fs, main_wald$pi + 1.96 * main_wald$se_fs)`**. The excluded-instrument robust Wald $F=t^2$ is **`r fmt(main_wald$F, 1)`**. These numbers assess relevance, not exclusion. The hospital first stage is estimated separately on the hospital-outcome sample. The fitted linear probability curves need not stay within 0–100% at the edges; departures from the observed plateau caution against treating the five-year trend as exact. Narrower windows and a quadratic sensitivity address that approximation, without selecting the specification by significance.
+
+## IV assumption 2 — Exclusion
+
+**Assumption.** Holding the relevant Medicare treatment fixed, crossing the age rule has no other discontinuous effect on healthcare use: locally, $Y_i(d,1)=Y_i(d,0)$. The desired path is $Z\rightarrow D\rightarrow Y$. An independent $Z\rightarrow\text{retirement or income}\rightarrow Y$ path violates exclusion.
+
+**Why partly plausible, and why uncertain.** Entry into Medicare changes coverage and financial incentives to seek care. But Social Security's full retirement age was also 65 for the cohorts reaching 65 in 1992–1996 ([Social Security Administration](https://www.ssa.gov/oact/progdata/nra.html)). Retirement can change free time, income and employer insurance. It cannot be dismissed merely because some people retire at other ages. We estimate employment as an outcome to investigate this competing mechanism.
+
+The employment jump is **`r fmt(100 * employment$estimate)` points**, 95% CI **`r ci_text(employment$lo, employment$hi)`**, p = **`r pv_text(employment$p)`**. `r if (employment$p < .05) "This flags a discontinuous employment change and makes the exclusion argument less convincing. The data cannot separate retirement caused by Medicare from retirement caused by a separate age-65 rule." else "The estimate does not reject a zero employment jump, but its interval and the absence of income or retirement-claiming measures leave independent retirement channels unresolved."` Employment is **not** added as a control: it could be a mediator of Medicare or a response to the same instrument. Conditioning on it would not generally recover the original total effect or fix an invalid instrument.
+
+Two concrete alternative paths explain why exclusion remains uncertain. First, Social Security or employer retirement rules could change income or time available for appointments at 65 without any change in Medicare participation. Second, someone receiving Medicare before 65 could experience a threshold-related change in supplementary coverage, cost sharing or provider access while `mcare` stays one. If such a change affects visits, the binary first stage does not capture it. These are plausible threats, not mechanisms proven to occur for the respondents in this extract. In contrast, changes in generosity caused by a person's entry into Medicare can belong to the treatment effect; Medicare-induced retirement can also be a mediated effect of entry rather than an independent violation.
+
+Treatment definition also matters. With $D=\texttt{covered2}$, Medicare may change generosity or provider access for people insured on both sides, affecting $Y$ without changing $D$. With $D=\texttt{mcare}$, entry captures more of the relevant change, but binary coverage still does not capture every plan feature. Changes affecting existing Medicare recipients while their indicator remains one would violate this binary-treatment exclusion restriction. We therefore use **only `mcare` as the first-stage treatment**. `covered2` appears solely as a descriptive pre-65 insurance rate in the subgroup assessment, not as another treatment, instrument or IV estimate. Features changing because someone enters Medicare can be part of its effect; the exclusion concern is a threshold-induced change in utilisation while Medicare participation remains fixed. This concern is consistent with the coverage-generosity mechanism in [Card, Dobkin and Maestas (2008)](https://pmc.ncbi.nlm.nih.gov/articles/PMC2600774/).
+
+**Can we test retirement directly?** Not from these inputs. The 1992–1996 extract retains recent employment, but no retirement-status or pension-claiming measure; `empft` and `wrkhrs` are entirely missing in this period. The historical [major-activity documentation](https://nhis.ipums.org/nhis-action/variables/MAJACT) confirms that the 1982–1996 core question did not separately identify retirement. `1-emp` is non-employment, not retirement, and is simply the negative of the existing employment discontinuity. We therefore label this an indirect employment diagnostic. A direct retirement RD would need a validated retirement measure on both sides of 65; even that would not isolate income changes among people already retired. We do not infer a maximum retirement bias from descriptive worker/non-worker utilisation gaps.
+
+**How to read the employment interval.** `emp = 1` means employed, not retired. A positive fitted jump means employment is slightly higher just above 65 than the extrapolated age trend predicts; it does not imply that employment generally rises from age 64 to 65 or that the same people reversed retirement. On the primary IV sample the jump is `r fmt(100 * employment_primary$estimate)` points, CI `r ci_text(employment_primary$lo, employment_primary$hi)`; on the group's doctor-response sample it is `r fmt(100 * employment_csv$estimate)` points, CI `r ci_text(employment_csv$lo, employment_csv$hi)`. These intervals allow both declines and increases. Non-employment also includes unemployment and other inactivity, so it cannot simply be renamed retirement. The older interval of approximately [-1.51, 4.04] points came from a superseded specification and is not the current five-year result.
+
+There is one excluded instrument for one treatment, so no overidentification test can establish exclusion. Smooth covariates, employment checks and placebo cutoffs are indirect evidence, not a statistical test of the entire restriction.
+
+## IV assumption 3 — Monotonicity, plus consistency
+
+**Assumption.** $D_i(1)\geq D_i(0)$ locally: no person would lose Medicare **because** age-based eligibility became available. This compares counterfactual eligibility regimes at the same local age; it does not require observed coverage to rise for every individual over time. The eligibility expansion makes this direction plausible, but individual take-up responses and reporting errors mean it is an assumption about actual coverage, not a fact proved by the legal rule.
+
+The race-by-education first stages discussed below and tabulated in Appendix C are `r if (all(subgroups$first_stage > 0)) "positive in all four groups" else "not uniformly positive"`. Opposite-signed subgroup jumps would be concerning; positive averages cannot rule out individual defiers. Under monotonicity, the discontinuity in coverage is the local complier share, which explains the Wald scaling. We cannot identify which respondents are compliers from these repeated cross-sections.
+
+Consistency further requires the treatment and reported outcome to represent the potential outcomes being compared, and no relevant discontinuous spillovers through spouses or providers that bypass own coverage. Different Medicare packages and exposure durations make this demanding. These qualifications matter especially for the retrospective outcomes; the mathematical LATE statement alone does not establish that the measured binary treatment is sufficient.
+
+## What the subgroup comparison can and cannot establish
+
+For each race-by-education group, we estimate the coverage, doctor-visit and employment jumps using the same five-year window and year effects. Groups are rebuilt from observed `educ` and `wnh`. The supplied `group` assigns `r int(supplied_group_missing_educ)` respondents with missing education to a low-education category (`r int(supplied_group_missing_educ_window)` in the five-year window); we do not use that assignment. Missing education excludes respondents from subgroup comparisons, not from the main IV. The first stage and utilisation jump use identical respondents; employment is observed for that sample too. We also describe insurance coverage at ages 63 to under 65. A group with less pre-65 insurance could gain more from Medicare, but need not have the largest **Medicare-participation** jump: disability-related Medicare below 65 can reverse that ranking. We therefore assess the utilisation and employment pattern together, not just the sign of a coverage–utilisation correlation.
+
+The largest fitted doctor-visit jump is in **`r sg_largest$group`** (`r fmt(100 * sg_largest$reduced_form)` points, 95% CI `r ci_text(sg_largest$rf_lo, sg_largest$rf_hi)`); the smallest is in **`r sg_smallest$group`** (`r fmt(100 * sg_smallest$reduced_form)` points). The lowest pre-65 insurance rate is in **`r sg_low_ins$group`** (`r fmt(100 * sg_low_ins$pre65_any_insurance)`%). The largest Medicare first stage instead occurs in **`r sg_fs_largest$group`**. Appendix C shows all intervals, including employment, rather than selecting the most persuasive group.
+
+There are `r sg_emp_flags` subgroup employment intervals excluding zero at the unadjusted 5% level. These exploratory comparisons do not identify individual retirement effects, establish cross-group differences statistically, or quantify how much of the utilisation jump is Medicare rather than retirement. Coverage effects and retirement responses may both vary by group. The evidence can strengthen or weaken the story, but cannot prove exclusion.
+
+In this sample, the point estimates show larger doctor-visit jumps for the two below-high-school groups, consistent with greater gains where prior insurance is less common. However, the group with the largest Medicare first stage has the smallest utilisation jump, so the proposed simple ranking of coverage and utilisation jumps is **not supported by these point estimates**. Every subgroup utilisation interval includes zero, and the employment intervals are wide. This is suggestive evidence about insurance disadvantage, not a successful test that separates Medicare from retirement.
+
+## What the evidence permits before modelling
+
+The first stage supports using the cutoff as a source of coverage variation. A causal coverage interpretation additionally requires smooth counterfactual outcomes, no independent age-65 channel, monotonic take-up, adequate treatment measurement and no selection-induced break. Placebo outcome tests at 63, 64, 66 and 67 use windows entirely on one side of the real threshold; **`r sum(placebos$p_holm < .05)` of `r nrow(placebos)`** reject after Holm adjustment. They are a check for spurious local breaks, with particularly low power at 64 and 66, not proof that the actual threshold is unconfounded.
+
+Our conclusion must therefore distinguish a measured discontinuity, an eligibility effect under RD assumptions, and a coverage LATE under the additional IV assumptions. If another independent policy changes at 65, even the reduced form is an age-65 bundle effect rather than an isolated Medicare eligibility effect. Running 2SLS cannot settle this distinction. We do not label the fuzzy estimate an upper bound. To see the extra assumption that would require, suppose the observed outcome jump is $\Delta_Y=\tau\Delta_D+\rho$, where $\rho$ is the net non-Medicare contribution. With $\Delta_D>0$, the ratio equals $\tau+\rho/\Delta_D$. It is an upper bound only if $\rho\geq0$ and the remaining decomposition assumptions hold. An insignificant employment jump establishes neither condition.
+
+# 2.4 Estimation Method
+
+Following the feedback about quarterly-age support, the **main half-window is fixed at $h=5$ years**, not chosen by an automatic bandwidth selector. The alternatives are 3, 4, 6 and 7 years. The earlier automatic bandwidths of approximately 1.68 years for estimation and 5.85 for bias correction are obsolete. Current estimation and bias correction both use five years; every alternative window also lies inside the new full CSV's 55.25–74.75 age range. Code checks the requested windows and actual ages used, so a later change cannot silently exceed that range. Five years balances precision against reliance on a linear age approximation; it is a transparent working specification, not evidence that a five-year trend is exactly linear. This decision follows the feedback after an earlier draft had been inspected, so we do not describe it as a preregistered choice.
+
+Let $T_{it}$ be survey-year indicators, with 1992 omitted. We estimate
+
+$$D_i=\pi_0+\pi_1 Z_i+\pi_2 A_i+\pi_3 A_iZ_i+\sum_{t=1993}^{1996}\lambda_t T_{it}+v_i,$$
+$$Y_i=\alpha+\delta Z_i+\beta_1 A_i+\beta_2 A_iZ_i+\sum_{t=1993}^{1996}\gamma_t T_{it}+u_i.$$
+
+Both equations use **identical observations, age terms, year fixed effects and weights** proportional to $(\texttt{wt}_i/5)\max\{0,1-|A_i|/5\}$. The coverage effect is $\widehat\tau=\widehat\delta/\widehat\pi_1$. This equals weighted 2SLS for $Y$ on Medicare, age, age-by-threshold and year indicators, using $Z$ as the single excluded instrument. Year effects absorb common level differences between survey years; they cannot repair outcome-dependent selection or an independent age-65 policy. The code verifies the Wald coefficient and its HC1 covariance against the direct IV score calculation. It does not use ordinary second-stage OLS standard errors.
+
+**Inference.** The main table reports heteroskedasticity-robust HC1 standard errors and normal-approximation 95% intervals, allowing covariance between the first stage and reduced form. These are conditional on the specified age curves; a fixed window may leave approximation bias even with many observations. There are `r main_wald$cells[1]` distinct age cells below and `r main_wald$cells[2]` at/above the cutoff. We show age-cell CR1 inference and a local-quadratic bias-corrected calculation as supplements. For the latter, both estimation and bias bandwidths are fixed at five years; no automatic bandwidth selection is used ([rdrobust documentation](https://github.com/rdpackages/rdrobust)).
+
+Neither age clustering nor mass-point handling makes quarterly age continuous or solves model bias. [Kolesár and Rothe (2018)](https://www.aeaweb.org/articles?id=10.1257/aer.20160945) explain why age-cell clustering is not a general remedy. The extract also lacks usable NHIS PSU, stratum and household identifiers, so these are not full survey-design standard errors. Weighting does not resolve that limitation. We assess robustness across the fixed windows, local quadratic trends, added demographics, unweighted estimation, the cleaned sample and two donut exclusions. All retain the same `mcare` treatment. Year effects are included except in the explicitly labelled no-year-effects diagnostic.
+
+# 2.5 Results
+
+```{r main-results}
+show_main <- data.frame(Outcome = main_table$specification,
+  `IV effect (pp)` = fmt(100 * main_table$estimate),
+  `HC1 SE (pp)` = fmt(100 * main_table$se_HC1),
+  `HC1 95% CI (pp)` = mapply(ci_text, main_table$lower95, main_table$upper95),
+  `p` = pv_text(main_table$p_value), `N in window` = main_table$N,
+  `N left/right` = paste(main_table$N_left, main_table$N_right, sep = "/"), check.names = FALSE)
+knitr::kable(show_main, caption = "Table 4. Fuzzy-RD/IV estimates for Medicare coverage. Fixed five-year half-window, triangular kernel, survey weights and year fixed effects; 1992–1996.")
+decomposition <- data.frame(Outcome = c("Doctor visit", "Hospital stay"),
+  `Below-65 fitted rate (%)` = fmt(100 * components$baseline_below65),
+  `Medicare jump (pp)` = fmt(100 * components$coverage_jump),
+  `Outcome jump (pp)` = fmt(100 * components$outcome_jump),
+  `Outcome jump / baseline (%)` = fmt(components$outcome_jump_relative_pct),
+  `First-stage F` = fmt(components$first_stage_F, 1), check.names = FALSE)
+knitr::kable(decomposition, caption = "Table 5. Components of each IV estimate, on its matched sample. Fitted below-65 rates standardise both sides to the same kernel-and-survey-weighted year distribution.")
+```
+
+The primary IV estimate is **`r fmt(100 * main_wald$tau)` percentage points**, HC1 95% CI **`r ci_text(main_wald$lo, main_wald$hi)`** (p = `r pv_text(main_wald$p_value)`). If the full causal assumptions hold, this means about `r fmt(abs(100 * main_wald$tau), 1)` `r if (main_wald$tau >= 0) "more" else "fewer"` respondents reporting a past-year doctor visit per 100 local coverage compliers. It is a probability difference, not a percentage increase in visit counts or an effect of twelve months of Medicare.
+
+The fitted doctor-visit rate just below 65 is **`r fmt(100 * main_wald$baseline_y)`%**. The IV numerator is an outcome jump of **`r fmt(100 * main_wald$delta)` points**, equivalent to **`r fmt(100 * main_wald$delta / main_wald$baseline_y)`% of that baseline rate**. Dividing this jump by the **`r fmt(100 * main_wald$pi)`-point** Medicare first stage gives the IV estimate. For scale, the IV estimate is `r fmt(100 * main_wald$tau / main_wald$baseline_y)`% of the overall below-65 rate, but that is **not a complier relative risk**: the untreated visit rate specifically among compliers is not identified here. This decomposition belongs to the fuzzy calculation and does not replace the group's standalone sharp-RD result, which may use a different sample.
+
+`r if (main_wald$lo <= 0 && main_wald$hi >= 0) "The primary interval includes zero; the estimate does not reject a zero effect at 5%, while the interval may still include practically important effects." else "The primary HC1 interval excludes zero conditional on the fitted model. Statistical significance does not establish exclusion or rule out age-curve approximation bias."` The secondary hospital estimate is **`r fmt(100 * hospital_wald$tau)` points**, with HC1 interval **`r ci_text(hospital_wald$lo, hospital_wald$hi)`**. Its p-value is pointwise, not adjusted for examining a second outcome.
+
+```{r outcome-figure, fig.cap="Figure 2. Quarterly means for each outcome's matched Medicare sample. Lines are the corresponding five-year local linear fits with year effects, standardised to a common year distribution within each outcome."}
+p_outcomes
+```
+
+Across the fixed 3–7-year windows, doctor-visit estimates range from **`r fmt(100 * min(bandwidth_results$estimate))` to `r fmt(100 * max(bandwidth_results$estimate))` points**. The same-window quadratic estimate is **`r fmt(100 * quadratic$tau)`**, the new-full-CSV estimate **`r fmt(100 * clean_fit$tau)`**, and the estimate excluding `age4 = 65` **`r fmt(100 * donut_zero$tau)`** points. The fixed-bandwidth bias-corrected interval is **`r ci_text(main_rd$ci[3, 1], main_rd$ci[3, 2])`**, compared with the main HC1 interval above. These comparisons assess model dependence; we do not choose whichever yields significance. Full tables are in Appendix B. Omitting year effects on the same doctor IV sample gives `r fmt(100 * no_year_fit$tau)` points, compared with `r fmt(100 * main_wald$tau)` with year effects; this is a sensitivity check rather than a significance-based specification choice.
+
+Across these fixed windows, `r sum(bandwidth_results$estimate > 0)` of `r nrow(bandwidth_results)` doctor estimates are positive and `r sum(bandwidth_results$lower95 > 0 | bandwidth_results$upper95 < 0)` HC1 intervals exclude zero. The supplementary bias-corrected doctor estimate is `r fmt(100 * main_rd$coef[3, 1])` points, CI `r ci_text(main_rd$ci[3, 1], main_rd$ci[3, 2])`; age-cell inference is reported separately in Appendix B. The hospital bias-corrected interval is `r ci_text(hospital_rd$ci[3, 1], hospital_rd$ci[3, 2])`. These specifications and inference methods need not agree at the 5% threshold. We report the full set rather than selecting a significant result; none resolves the causal assumptions.
+
+With the old supplied replication weights, the doctor IV is `r fmt(100 * replication_doctor$tau)` points versus `r fmt(100 * main_wald$tau)` under the restored source scales. Excluding partial-year 1993 gives `r fmt(100 * no1993_doctor$tau)` points. These differences concern relative year weighting and sample periods, not the harmless common division by five.
+
+# 2.6 Limitations
+
+**Exclusion remains weakly defended.** Strong relevance is not evidence that eligibility affects utilisation only through `mcare`. The employment jump is `r fmt(100 * employment$estimate)` points, interval `r ci_text(employment$lo, employment$hi)`; the subgroup evidence does not isolate Medicare from income, pensions, free time, changes in generosity among existing recipients, or spillovers. Employment is a diagnostic outcome, not a control that fixes exclusion. If independent age-65 channels contribute to the numerator, the fuzzy ratio scales that combined discontinuity. We therefore neither assert an unconditional Medicare LATE nor call the estimate an upper bound without a sign assumption on those other channels.
+
+**Measurement and selection remain substantive.** Current coverage does not identify treatment throughout the outcome's past-year reference period. Age-measure disagreement and quarterly support complicate assignment and cutoff interpolation. Donut estimates remove nearby observations but cannot reconstruct exact dates, and require more extrapolation. Restricting the sample to 1992–1996 avoids the later questionnaire and suspected coding issues; it does not resolve remaining nonresponse or validate every original recode. Smooth response rates cannot establish that unobserved responses would have followed a smooth trend.
+
+**Precision is conditional on specification.** Five-year linear trends use more age cells but can fit curvature poorly; narrower windows lose precision, and the quadratic and bias-correction checks address only particular alternatives. HC1, age-cell and bias-corrected intervals do not incorporate uncertainty about exclusion or treatment timing. Absent survey-design identifiers prevent full NHIS variance estimation. Group comparisons are exploratory, potentially underpowered and not independent confirmation of a mechanism.
+
+**Period coverage and weighting.** The 1993 source covers July–December, while 1996 weights already account for its reduced sample. Restoring the documented source weight fields does not reconstruct absent interview months or correct item nonresponse. Supplied-weight and no-1993 alternatives expose this sensitivity. Without effect homogeneity over time, different pooling choices can target different weighted local effects.
+
+**The target is local and historical.** Any valid effect concerns coverage compliers near 65 in the sampled US civilian, noninstitutionalised population during 1992–1996, subject to selection ([NCHS](https://www.cdc.gov/nchs/nhis/about/index.html)). It need not extend to existing Medicare recipients, people in institutions, younger adults, later programme arrangements, or a different eligibility age. Our contribution is to show what the IV extension adds, and which stronger assumptions it requires, rather than replace the group's eligibility estimate with a supposedly more credible result.
+
+# Appendix A — Response, composition and placebo checks
+
+```{r age-audit-table}
+knitr::kable(audit_age, digits = 2, caption = "A1. Quarterly-age versus whole-year-age audit; discrepancies are disclosed rather than silently recoded.")
+p_counts
+p_emp
+```
+
+The count histogram assesses sampling irregularities; it is not a continuous-density test. The employment plot connects observed means. Its reported discontinuity uses the five-year regression with year effects on all available source-sample employment observations. On the primary IV sample instead, the employment jump is `r fmt(100 * employment_primary$estimate)` points, interval `r ci_text(employment_primary$lo, employment_primary$hi)`.
+
+```{r full-sample-balance}
+knitr::kable(display_jumps(balance_full, cov_labels), caption = "A2. Covariate continuity before outcome-specific selection; five-year window and year fixed effects.")
+knitr::kable(display_jumps(balance_year, year_labels), caption = "A3. Survey-year composition in the primary IV sample. Same five-year window, but no year controls: controlling for the outcome itself would make this check meaningless.")
+knitr::kable(missing_by_year, digits = 2, caption = "A4. Missing doctor, hospital and Medicare responses separately by survey year. Unweighted respondent counts and percentages, before complete-case restrictions.")
+```
+
+The year-composition checks flag `r sum(balance_year$p_holm < .05)` indicators after Holm adjustment. Year effects are included in the main IV regardless of these p-values. This guards against common year-level differences, not arbitrary year-specific discontinuities or nonresponse.
+
+```{r placebo-table}
+pl_show <- data.frame(Outcome = ifelse(placebos$variable == "sawdr", "Doctor visit", "Hospital stay"),
+  Cutoff = placebos$cutoff, h = placebos$h, `Jump (pp)` = fmt(100 * placebos$estimate),
+  `95% CI (pp)` = mapply(ci_text, placebos$lo, placebos$hi),
+  `Holm p` = pv_text(placebos$p_holm),
+  N = placebos$N, `N left/right` = paste(placebos$n_left, placebos$n_right, sep = "/"),
+  `Age cells L/R` = paste(placebos$cells_left, placebos$cells_right, sep = "/"), check.names = FALSE)
+knitr::kable(pl_show, caption = "A5. Placebo outcome jumps in the outcome-specific IV samples, with year effects. No window crosses or includes age 65. HC1 intervals; Holm adjustment across eight checks.")
+```
+
+These are falsification checks for the **IV numerator**, not separate headline sharp-RD estimates or fuzzy ratios at cutoffs with no expected first stage. Windows at 64 and 66 have only three left and four right age cells, limiting power and trend assessment. Post-65 utilisation can also vary with exposure duration. Nonrejection is supporting evidence at most.
+
+# Appendix B — Fuzzy-RD sensitivity
+
+```{r sensitivity-tables}
+show_sensitivity <- function(t) data.frame(Specification = t$specification,
+  `h` = fmt(t$h, 1), `IV estimate (pp)` = fmt(100 * t$estimate),
+  `HC1 95% CI (pp)` = mapply(ci_text, t$lower95, t$upper95),
+  N = t$N, `N left/right` = paste(t$N_left, t$N_right, sep = "/"), `Age cells L/R` = paste(t$cells_left, t$cells_right, sep = "/"), check.names = FALSE)
+knitr::kable(show_sensitivity(bandwidth_results), caption = "B1. Doctor-visit IV estimates using fixed bandwidths in years. All include year fixed effects and instrument Medicare participation.")
+p_bandwidth
+knitr::kable(show_sensitivity(hospital_bandwidths), caption = "B2. Secondary hospital-outcome IV estimates using the same fixed bandwidth choices and year effects.")
+knitr::kable(show_sensitivity(specifications), caption = "B3. Doctor-visit specification checks at the main five-year bandwidth. Year effects are retained except in the explicitly labelled diagnostic; only the demographic-adjusted row adds other controls.")
+```
+
+The demographic sensitivity adds female, three race/ethnicity indicators, education and region. Its comparison row uses the identical control-complete sample with year effects only, separating sample changes from covariate adjustment. Year indicators are exogenous controls and included instruments, not extra excluded instruments. Employment and current health are not controls. Donut exclusions increase the distance over which the cutoff must be extrapolated; they cannot by themselves prove that anticipation or age misclassification has been removed.
+
+```{r inference-sensitivity}
+inference_table <- data.frame(Method = c("Main: HC1 IV", "Age-cell CR1, t(G-1)", "Fixed h=b=5: bias corrected, NN variance"),
+  `Centre (pp)` = fmt(100 * c(main_wald$tau, main_wald$tau, main_rd$coef[3, 1])),
+  `SE (pp)` = fmt(100 * c(main_wald$se, main_wald$cluster_se, main_rd$se[3, 1])),
+  `95% CI (pp)` = c(ci_text(main_wald$lo, main_wald$hi),
+    ci_text(main_wald$tau - qt(.975, main_wald$G - 1) * main_wald$cluster_se,
+            main_wald$tau + qt(.975, main_wald$G - 1) * main_wald$cluster_se),
+    ci_text(main_rd$ci[3, 1], main_rd$ci[3, 2])), check.names = FALSE)
+knitr::kable(inference_table, caption = "B4. Doctor-visit inference sensitivity. All use five-year bandwidths and year controls. The bias-corrected interval is centred on a different estimator.")
+save_table(inference_table, "inference_sensitivity")
+```
+
+There are `r main_wald$G` age-cell clusters. First-stage statistics are HC1 $F=$ `r fmt(main_wald$F, 1)` and CR1 $F=$ `r fmt(main_wald$cluster_F, 1)`. Age-cell clustering is not NHIS design clustering or protection against arbitrary curvature. The supplementary bias correction also relies on smoothness and a local quadratic approximation; it does not repair mismeasured eligibility. We retain all intervals rather than selecting by significance.
+
+# Appendix C — Evidence about Medicare versus retirement
+
+```{r subgroup-checks}
+sg <- data.frame(Group = subgroups$group,
+  `Pre-65 any insurance (%)` = fmt(100 * subgroups$pre65_any_insurance),
+  `Medicare jump (pp)` = fmt(100 * subgroups$first_stage),
+  `Medicare 95% CI` = mapply(ci_text, subgroups$fs_lo, subgroups$fs_hi),
+  N = subgroups$N, `N left/right` = paste(subgroups$N_left, subgroups$N_right, sep = "/"), check.names = FALSE)
+knitr::kable(sg, caption = "C1. Race-by-education first stages. Five-year window, year effects and HC1 intervals. Pre-65 any-insurance rates are descriptive means at ages 63 to under 65, not an alternative first stage.")
+sg_y <- data.frame(Group = subgroups$group,
+  `Doctor jump (pp)` = fmt(100 * subgroups$reduced_form),
+  `Doctor 95% CI` = mapply(ci_text, subgroups$rf_lo, subgroups$rf_hi),
+  `Employment jump (pp)` = fmt(100 * subgroups$employment_jump),
+  `Employment 95% CI` = mapply(ci_text, subgroups$employment_lo, subgroups$employment_hi),
+  N = subgroups$N, check.names = FALSE)
+knitr::kable(sg_y, caption = "C2. Utilisation and employment jumps on the same within-group IV samples. Pointwise HC1 intervals; exploratory comparisons without multiplicity adjustment.")
+```
+
+The comparison is useful if utilisation changes are consistent with pre-65 insurance disadvantage while employment changes do not explain the same ranking. However, a binary employment indicator misses income and pension changes, and different groups can benefit differently from Medicare even with similar first stages. The tables cannot assign a percentage of the reduced form to retirement. No self-rated-health models or alternative any-insurance IV estimates are included.
+
+# Appendix D — Sample and weight reconciliation
+
+```{r sample-reconciliation}
+sc <- sample_comparison
+knitr::kable(data.frame(Analysis = sc$Analysis, `N before window` = sc$N_before_window,
+  `N left` = sc$N_left, `N right` = sc$N_right, N = sc$N,
+  `Outcome jump (pp)` = fmt(100 * sc$Outcome_jump), check.names = FALSE),
+  caption = "D1. Same five-year window, year effects and relative weights. Different observation requirements explain the sample differences; the outcome jumps are components of the reconciliation, not interchangeable IV numerators.")
+knitr::kable(show_sensitivity(hospital_sample_sensitivity),
+  caption = "D2. Hospital IV: retaining all observed hospital/Medicare responses versus additionally requiring the doctor response used to construct the full CSV.")
+knitr::kable(data.frame(Sample = employment_comparison$Sample,
+  `Employment jump (pp)` = fmt(100 * employment_comparison$estimate),
+  `95% CI (pp)` = mapply(ci_text, employment_comparison$lo, employment_comparison$hi),
+  N = employment_comparison$N,
+  `N left/right` = paste(employment_comparison$n_left, employment_comparison$n_right, sep = "/"),
+  check.names = FALSE), caption = "D3. Employment checks under the three relevant sample definitions.")
+knitr::kable(weight_scale_audit, digits = 10,
+  caption = "D4. Common weight-rescaling check. Here wt is the restored source weight; wt and wt/5 produce the same IV result.")
+knitr::kable(annual_weights, digits = 1,
+  caption = "D5. Supplied versus reconstructed source weight scales by year; sums are not claimed as national totals.")
+knitr::kable(show_sensitivity(weight_sensitivity),
+  caption = "D6. Relative year-weight and period-coverage sensitivities, both IV outcomes; main h = 5 and year effects.")
+```
+
+The largest requested age window is 58–72 for the seven-year alternative; actual positive-kernel-weight cells lie strictly inside those endpoints. The main and bias-correction windows are 60–70. The archived 1.68/5.85-year specification is not used. Missing-response diagnostics still require the SAS observations excluded from the new CSV, although their ages remain inside its range. The full ledger in `model_sample_sizes.csv` reports actual sample sizes for each regression and confirms that every estimation window stays inside the updated CSV's age support.
+
+The original NCHS core documentation distinguishes the annual person weight from weights used to annualise two-week event counts. Neither outcome here is a two-week visit count. Our use of a person-based weight is therefore appropriate to these person-level indicators, after restoring the documented source-weight scales and retaining the replication weighting as an explicit sensitivity. In addition, 1992–1994 and 1995–1996 span a sampling redesign. Without PSU and stratum identifiers we cannot reproduce full design-based variance estimation; neither a common division by five nor year fixed effects fixes that limitation. No national total is inferred from the supplied weight sums.
+
+# References and reproducibility
+
+This fuzzy-RD/IV section follows the professor's fixed-bandwidth and year-effects feedback, and Option 1, sections 2.3–2.6 of `Guidelines/EC4305_Project_Guidelines (2).pdf`, the variable roles in `Guidelines/EC4305 Project.docx`, and the design discussion in `Guidelines/Medicare_Age65_EC4305_Project_Idea (1).pdf`. It revisits their proposed age-cell clustering and exact-threshold interpretation in light of the observed data and the references below.
+
+- Card, David, Carlos Dobkin and Nicole Maestas (2008). [The Impact of Nearly Universal Insurance Coverage on Health Care Utilization: Evidence from Medicare](https://pmc.ncbi.nlm.nih.gov/articles/PMC2600774/). *American Economic Review*, 98(5), 2242–2258. [Replication archive](https://www.openicpsr.org/openicpsr/project/113278/version/V1/view).
+- Card, David, Carlos Dobkin and Nicole Maestas (2004). [The Impact of Nearly Universal Insurance Coverage on Health Care Utilization and Health: Evidence from Medicare](https://davidcard.berkeley.edu/papers/Impact%20of%20NUI.pdf). Working-paper version; institutional and retrospective-outcome discussion.
+- Dong, Yingying and Michal Kolesár (2023). [When Can We Ignore Measurement Error in the Running Variable?](https://arxiv.org/abs/2111.07388). *Journal of Applied Econometrics*, 38(5), 735–750.
+- Kolesár, Michal and Christoph Rothe (2018). [Inference in Regression Discontinuity Designs with a Discrete Running Variable](https://www.aeaweb.org/articles?id=10.1257/aer.20160945). *American Economic Review*, 108(8), 2277–2304.
+- RD Packages. [rdrobust source and documentation](https://github.com/rdpackages/rdrobust). Local polynomial estimation and robust bias-corrected inference; this file supplies fixed bandwidths.
+- Social Security Administration. [Normal Retirement Age](https://www.ssa.gov/oact/progdata/nra.html). Cohorts born in 1937 or earlier have full retirement age 65.
+- National Center for Health Statistics. [About NHIS](https://www.cdc.gov/nchs/nhis/about/index.html). Survey purpose and target population.
+
+Knitting writes numerical tables, figures, input checksums, model objects and package/session information to `output/fuzzy_rd`. The generated output files are optional working exports, not required inputs to knitting or separate mandatory submission attachments. Every displayed graph is generated by this Rmd. For the eventual report plus code submission, move interpretation into the report while retaining code, short stage descriptions and data/package requirements in the Rmd. The source Rmd contains all analysis code; set `show_code: true` to display non-setup chunks. For a complete standalone R script, run `knitr::purl("src/Fuzzy_RD_1992_1996.Rmd", output = "output/fuzzy_rd/analysis.R", documentation = 0)` and define the `params` list from this file before sourcing it. No package installation or remote data download occurs during knitting. Any `rdrobust` warnings are recorded in `rdrobust_warnings.csv`; an empty warning log is not evidence that the underlying discreteness has been solved.
+
+
+Additional source audit (accessed 27 October 2026): [IPUMS NHIS pooling guidance](https://blog.popdata.org/pooling-years-of-nhis-data/), [DVINT question, universe and weight documentation](https://nhis.ipums.org/nhis-action/variables/DVINT), and [NCHS 1996 core codebook](https://ftp.cdc.gov/pub/health_statistics/nchs/dataset_documentation/NHIS/1996/nhiscore.pdf). Inspected public replication programmes are retained under `output/fuzzy_rd/source_audit`; `source_audit/README.md` records their provenance and relevant lines. These source checks verify coding and weight provenance, not exclusion or other identifying assumptions.
