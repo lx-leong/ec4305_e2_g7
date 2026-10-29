@@ -13,7 +13,7 @@ knit: |
     found <- candidates[file.exists(file.path(candidates, 'pandoc.exe'))]
     if (length(found)) Sys.setenv(RSTUDIO_PANDOC = found[1])
     project <- dirname(normalizePath(inputFile, winslash = '/', mustWork = TRUE))
-    while (!file.exists(file.path(project, 'data', 'c9203.sas7bdat'))) {
+    while (!file.exists(file.path(project, 'data', 'nhis_clean_full.csv'))) {
       parent <- dirname(project)
       if (identical(parent, project)) stop('Cannot locate project data.')
       project <- parent
@@ -175,7 +175,7 @@ flow <- data.frame(
 restored <- sum(is.na(win$sawdr) & !is.na(win$inhosp))
 ```
 
-The data are NHIS `r min(d$year)`–`r max(d$year)` from the Card, Dobkin and Maestas replication file, aged `r min(d$age4)`–`r max(d$age4)`, with `r length(unique(d$age4))` distinct quarter-age values. Each analysis keeps only the respondents it needs, so the two outcomes have their own samples:
+The data are NHIS `r min(d$year)`–`r max(d$year)` from the team's cleaned file, built from the Card, Dobkin and Maestas replication file. Missing outcomes are kept in that file. Respondents are aged `r min(d$age4)`–`r max(d$age4)`, with `r length(unique(d$age4))` distinct quarter-age values. Each analysis keeps only the respondents it needs, so the two outcomes have their own samples:
 
 ```{r sample-table, results='asis'}
 cat(knitr::kable(flow,align='llrrrr',row.names=FALSE),sep='\n')

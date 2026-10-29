@@ -13,7 +13,7 @@ knit: |
     found <- candidates[file.exists(file.path(candidates, 'pandoc.exe'))]
     if (length(found)) Sys.setenv(RSTUDIO_PANDOC = found[1])
     project <- dirname(normalizePath(inputFile, winslash = '/', mustWork = TRUE))
-    while (!file.exists(file.path(project, 'data', 'c9203.sas7bdat'))) {
+    while (!file.exists(file.path(project, 'data', 'nhis_clean_full.csv'))) {
       parent <- dirname(project)
       if (identical(parent, project)) stop('Cannot locate project data.')
       project <- parent
@@ -142,7 +142,7 @@ The survey weight $wt_i$ is the weight supplied in the replication file, unchang
 
 ## Sample
 
-The data are NHIS `r min(d$year)`–`r max(d$year)` from the Card, Dobkin and Maestas replication file. Each outcome uses everyone with that outcome observed:
+The data are NHIS `r min(d$year)`–`r max(d$year)` from the team's cleaned file, built from the Card, Dobkin and Maestas replication file. Missing outcomes are kept in that file, so each outcome uses everyone with that outcome observed:
 
 - **Doctor visits:** `r fmt_n(m1$N)` respondents within `r H` years of 65 (`r fmt_n(m1$n_left)` below and `r fmt_n(m1$n_right)` at or above).
 - **Hospital stays:** `r fmt_n(m2$N)` respondents (`r fmt_n(m2$n_left)` below and `r fmt_n(m2$n_right)` at or above).
@@ -285,6 +285,27 @@ for(y in outcomes) {
   if(y==outcomes[1]) axis(2,at=yy,labels=specs,las=1,cex.axis=.85,col.axis='#344f60',outer=TRUE,line=-1)
 }
 par(mfrow=c(1,1),oma=c(0,0,0,0))
+```
+
+The table below lists every estimate in the figure. Each cell gives the jump in percentage points with its 95% confidence interval. Holm p-values are shown only where a family of tests is adjusted: the two main outcomes, and the eight placebo tests.
+
+```{r all-specs-table, results='asis'}
+check_names <- c(main='Main','bandwidth'='Bandwidth','functional form'='Functional form',
+  covariates='Covariates',donut='Donut','exposure exclusion'='Exposure timing',
+  'weights and years'='Weights and years','fuzzy sample'='Fuzzy RD sample',placebo='Placebo cutoffs')
+specs <- unique(est$spec)
+side <- lapply(outcomes,function(y) est[est$outcome==y,][match(specs,est$spec[est$outcome==y]),])
+stopifnot(identical(side[[1]]$check,side[[2]]$check))
+grp <- unname(check_names[side[[1]]$check])
+grp <- ifelse(duplicated(grp),'',paste0('**',grp,'**'))
+p1 <- function(p) vapply(p,function(x) if(is.na(x)) '–' else if(x<.001) '<0.001' else sprintf('%.3f',x),'')
+cols <- function(z,name) {
+  r <- data.frame(paste(pct(z$estimate),ci(z)),p1(z$p_value),p1(z$p_holm),fmt_n(z$N))
+  names(r) <- paste0(name,': ',c('jump (pp) [95% CI]','p','Holm p','N'))
+  r
+}
+all_tab <- cbind(Check=grp,Specification=specs,cols(side[[1]],'Doctor'),cols(side[[2]],'Hospital'))
+cat(knitr::kable(all_tab,align=c('l','l',rep('r',8)),row.names=FALSE),sep='\n')
 ```
 
 # Subgroup comparisons
