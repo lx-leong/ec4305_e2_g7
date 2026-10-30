@@ -202,7 +202,7 @@ cat(table_rd(response,unname(rd_labels[response$outcome]),relative=FALSE),sep='\
 
 <div class="finding">
 
-`r if(sum(response$p_holm<.05)==0) 'No response rate jumps significantly at 65 after the Holm adjustment.' else paste0('After the Holm adjustment, response jumps significantly at 65 for: ',paste(rd_labels[response$outcome[response$p_holm<.05]],collapse=', '),'. The affected analyses should be read with this in mind.')` `r always_text` Smooth response rates show that the samples on each side are formed in the same way. They cannot show that the missing answers themselves would have been similar.
+`r if(sum(response$p_holm<.05)==0) 'No response rate jumps significantly at 65 after the Holm adjustment.' else paste0('After the Holm adjustment, response jumps significantly at 65 for: ',paste(rd_labels[response$outcome[response$p_holm<.05]],collapse=', '),'. The affected analyses should be read with this in mind.')` `r always_text` Nonrejection does not establish identical selection processes or reveal the composition and outcomes of nonrespondents.
 
 </div>
 
@@ -380,7 +380,7 @@ At 62, employment changes by **`r pct(c62$estimate)` pp** (95% CI `r ci(c62)`; p
 
 <div class="caution">
 
-**What employment can and cannot show.** A flat employment rate at 65 means there is no large net movement out of work. It does not rule out small changes, offsetting moves into and out of work, or pension and income changes among people who had already retired.
+**What employment can and cannot show.** An insignificant employment discontinuity means that this specification does not detect a net change; its confidence interval still permits changes. It does not rule out small changes, offsetting moves into and out of work, or pension and income changes among people who had already retired.
 
 </div>
 
@@ -388,14 +388,11 @@ At 62, employment changes by **`r pct(c62$estimate)` pp** (95% CI `r ci(c62)`; p
 
 ## The prediction
 
-Medicare can raise healthcare use at 65 through two groups of people:
+Medicare eligibility can affect previously uninsured people who gain coverage and already-insured people whose coverage changes. For **doctor visits**, we explore whether groups with larger gains in any insurance show larger utilisation increases, consistent with improved access among the previously uninsured. This is an exploratory hypothesis, not a necessary implication of Medicare eligibility.
 
-- **Gainers** were uninsured before 65 and get Medicare at 65. Going from no insurance to insurance is the large change in what care costs them, so most of any utilisation effect should come from them.
-- **Switchers** already had insurance, usually through an employer, and move onto Medicare at 65. They are insured on both sides of the cutoff, so their utilisation should change much less.
+We do **not impose the same ordering on hospital stays**. Previously insured people may respond to changes in coverage generosity, supplemental insurance or the cost of particular procedures. Card, Dobkin and Maestas (2008) find larger responses for some expensive hospital procedures among previously insured groups. Our outcome is any overnight hospital stay, not those specific procedures. A hospital pattern that does not follow gains in any coverage therefore does not by itself contradict an insurance mechanism.
 
-If Medicare's insurance gain drives the effect, the outcome jumps should be **largest in the groups where coverage rises most at 65**. Those are the groups with the most uninsured people just before 65. If retirement drove the effect instead, the outcome jumps should follow the employment drops.
-
-We compare four race-by-education groups: White non-Hispanic or other race/ethnicity, crossed with below-high-school or higher education. The main measure is the jump at 65 in **any health insurance coverage** (`covered2`), which counts only gainers. The share uninsured before 65 is shown alongside. This section estimates only the coverage, Medicare and employment jumps and states the prediction. **The estimation report tests it against the outcome jumps.**
+We compare four race-by-education groups. The jump in **any insurance coverage** (`covered2`) measures a net change in the insured share, not a direct count of individual gainers. Medicare coverage changes include both newly insured respondents and changes in existing coverage. Employment jumps provide a separate, indirect comparison for a possible retirement channel. The estimation report compares these descriptive patterns with the outcome jumps.
 
 ## Matched samples
 
@@ -420,7 +417,7 @@ ends_agree <- top==unins_order[1] && bottom==unins_order[4]
 hosp_same <- identical(ord(sh,'cov_jump')[c(1,4)],cov_order[c(1,4)])
 overall_mcare <- fit_rd(d,'mcare',H,label='Medicare overall')$row
 overall_cov <- fit_rd(d,'covered2',H,label='Coverage overall')$row
-switch_share <- 1-overall_cov$estimate/overall_mcare$estimate
+
 emp_sig <- sd$label[sd$emp_p<.05]
 jump_ci <- function(est,lo,hi) sprintf('%s [%s, %s]',pct(est,1),pct(lo,1),pct(hi,1))
 sub_table <- function(s) knitr::kable(data.frame(Group=s$label,N=fmt_n(s$N),
@@ -458,35 +455,29 @@ dot <- function(est,lo,hi,main,col,labels) {
 }
 z <- sd[match(cov_order,sd$group),]
 par(mfrow=c(1,3),mar=c(4,8.5,3,1))
-dot(z$cov_jump,z$cov_lo,z$cov_hi,'Any coverage (gainers)','#176d85',group_short[as.character(z$group)])
-dot(z$mcare_jump,z$mcare_lo,z$mcare_hi,'Medicare (gainers + switchers)','#5b7f95',group_short[as.character(z$group)])
+dot(z$cov_jump,z$cov_lo,z$cov_hi,'Any insurance coverage','#176d85',group_short[as.character(z$group)])
+dot(z$mcare_jump,z$mcare_lo,z$mcare_hi,'Medicare coverage','#5b7f95',group_short[as.character(z$group)])
 dot(z$emp_jump,z$emp_lo,z$emp_hi,'Employment','#c17948',group_short[as.character(z$group)])
 par(mfrow=c(1,1))
 ```
 
 <div class="finding">
 
-**Prediction for the estimation report.** Coverage rises most at 65 for **`r lab(top)`** (`r pct(sd$cov_jump[sd$group==top],1)` pp) and least for **`r lab(bottom)`** (`r pct(sd$cov_jump[sd$group==bottom],1)` pp). If Medicare's insurance gain drives the effect, the jumps in doctor visits and hospital stays should therefore be **largest for `r lab(top)` and smallest for `r lab(bottom)`**.
+**Exploratory doctor-visit comparison.** Coverage rises most at 65 for **`r lab(top)`** (`r pct(sd$cov_jump[sd$group==top],1)` pp) and least for **`r lab(bottom)`** (`r pct(sd$cov_jump[sd$group==bottom],1)` pp). A larger doctor-visit increase in the former group would be consistent with a newly insured access channel, subject to differences in treatment responses across groups.
 
-`r if(mid_test['p']>=.05) paste0('The middle two groups, ',lab(mid[1]),' (',pct(sd$cov_jump[sd$group==mid[1]],1),' pp) and ',lab(mid[2]),' (',pct(sd$cov_jump[sd$group==mid[2]],1),' pp), gain coverage by similar amounts (difference p = ',pv(mid_test['p']),'). The prediction does not order them.') else paste0('The middle two groups are also distinguishable: ',lab(mid[1]),' gains more coverage than ',lab(mid[2]),' (difference p = ',pv(mid_test['p']),'). The full predicted order is ',paste(lab(cov_order),collapse=' > '),'.')` `r if(ends_agree) 'The share uninsured before 65 picks out the same largest and smallest groups.' else 'The share uninsured before 65 ranks the end groups differently, so the prediction should be read with care.'` `r if(hosp_same) 'The hospital-stay sample gives the same largest and smallest groups.' else 'The hospital-stay sample ranks the end groups differently; see its table.'`
+The middle-group coverage contrast has p = `r pv(mid_test['p'])`; nonrejection does not establish equal coverage gains. Hospital outcomes are compared separately without requiring this ordering, since changes in generosity can matter for previously insured respondents.
 
 </div>
 
 ## Secondary comparison: the Medicare jump
 
-The Medicare jump counts gainers and switchers together. Across all respondents, Medicare coverage rises by `r pct(overall_mcare$estimate,1)` pp at 65, but any coverage rises by only `r pct(overall_cov$estimate,1)` pp. So about `r sprintf('%.0f%%',100*switch_share)` of the rise in Medicare coverage comes from people who were already insured and switched.
+Medicare coverage rises by `r pct(overall_mcare$estimate,1)` pp at 65, compared with `r pct(overall_cov$estimate,1)` pp for any coverage. The larger Medicare discontinuity is consistent with changes in insurance arrangements among previously insured respondents as well as newly gained coverage. These separate fits may use different response samples. Their ratio does not identify a switcher share, and no percentage of individual transitions is inferred.
 
-Ranked by the Medicare jump, the order is `r paste(lab(mcare_order),collapse=' > ')`. `r if(mcare_order[1]==bottom) paste0(if(identical(mcare_order,rev(cov_order))) 'This is the exact reverse of the coverage-gain ranking. ' else 'This is close to the reverse of the coverage-gain ranking. ',lab(bottom),' has the largest Medicare jump but the smallest coverage gain, because most of its members move over from employer coverage.') else 'This differs from the coverage-gain ranking because switchers make up a different share of each group.'` Groups with more Medicare coverage before 65, mainly through disability, also have less room for a Medicare jump at 65.
-
-<div class="caution">
-
-**Reading the two rankings.** A large Medicare jump does not imply a large utilisation response, because switchers were insured already. The coverage-gain ranking is the relevant prediction for an insurance effect. The Medicare ranking is shown so that a mismatch between Medicare jumps and outcome jumps is not misread as evidence against Medicare. With four groups, these are descriptive comparisons. Overlapping confidence intervals mean only clear differences between groups should be interpreted.
-
-</div>
+The Medicare-jump ordering is `r paste(lab(mcare_order),collapse=' > ')`. Different coverage rankings can reflect prior Medicare participation, insurance switching and other group differences. Neither ranking alone identifies which mechanism determines healthcare utilisation. With four groups, these comparisons are descriptive and subject to estimation uncertainty.
 
 ## Retirement alternative
 
-If retirement drove the effect, outcome jumps should be largest where employment falls most at 65. Employment falls most for `r lab(emp_order[1])` (`r pct(sd$emp_jump[sd$group==emp_order[1]],1)` pp). In the other three groups it changes by between `r pct(min(sd$emp_jump[sd$group!=emp_order[1]]),1)` and `r pct(max(sd$emp_jump[sd$group!=emp_order[1]]),1)` pp. `r if(length(emp_sig)==0) 'No group shows a significant employment change at 65.' else paste0('Employment changes significantly at 65 for: ',paste(emp_sig,collapse=', '),'.')` `r if(emp_order[1]!=top) 'The group with the largest employment drop is not the group with the largest coverage gain, so the two channels make different predictions that the estimation report can compare.' else 'The group with the largest employment drop is also the group with the largest coverage gain, so this comparison cannot separate the two channels.'`
+Larger utilisation increases where employment falls more would be consistent with a retirement channel, but heterogeneous responses and offsetting employment flows can break this ordering. Employment falls most for `r lab(emp_order[1])` (`r pct(sd$emp_jump[sd$group==emp_order[1]],1)` pp). In the other three groups it changes by between `r pct(min(sd$emp_jump[sd$group!=emp_order[1]]),1)` and `r pct(max(sd$emp_jump[sd$group!=emp_order[1]]),1)` pp. `r if(length(emp_sig)==0) 'No group shows a significant employment change at 65.' else paste0('Employment changes significantly at 65 for: ',paste(emp_sig,collapse=', '),'.')` `r if(emp_order[1]!=top) 'The group with the largest employment drop is not the group with the largest coverage gain, so the two channels make different predictions that the estimation report can compare.' else 'The group with the largest employment drop is also the group with the largest coverage gain, so this comparison cannot separate the two channels.'`
 
 # Summary
 
@@ -496,11 +487,11 @@ If retirement drove the effect, outcome jumps should be largest where employment
 score <- data.frame(
   Check=c('Heaping in age','Response rates','Covariate balance','Covariate index',
           'Employment at 65','Employment falsification','Positive control at 62','Subgroup prediction'),
-  `What it tests`=c('Sorting or rounding of age around 65','Whether the samples on each side form in the same way',
+  `What it tests`=c('Sorting or rounding of age around 65','Observed response-rate discontinuities',
                     'Comparable people on each side','Combined imbalance relevant to healthcare use',
                     'Retirement at 65','Donut and placebo cutoffs for employment',
                     'Whether the employment test can detect retirement',
-                    'Whether outcome jumps should follow insurance gains'),
+                    'Exploratory doctor-visit access hypothesis'),
   Result=c(sprintf('65.00 cell is %.2f times its neighbours; %.1f%% whole-year ages',ratio65,100*integer_share),
            sprintf('%d of %d significant after Holm',sum(response$p_holm<.05),nrow(response)),
            sprintf('%d of %d significant after Holm',sum(balance$p_holm<.05),nrow(balance)),
@@ -523,7 +514,7 @@ cat(knitr::kable(score,align='llll',row.names=FALSE),sep='\n')
 
 <div class="finding">
 
-**What the checks support.** `r if(emp_pass && c62_pass) 'Employment does not change at 65, even though the same test detects the drop at 62.' else 'The employment evidence is mixed; see Check 3.'` `r if(all(balance$p_holm>=.05) && all(response$p_holm>=.05)) 'Observed characteristics and response rates are smooth through 65.' else 'Some characteristics or response rates shift at 65; see Checks 2 and the response checks.'` If the estimation report finds the largest outcome jumps where coverage rises most, the evidence points to Medicare's insurance gain rather than retirement as the source of the jump. These checks support the continuity assumption but cannot prove it.
+**What the checks support.** `r if(emp_pass && c62_pass) 'We do not detect a statistically significant employment discontinuity at 65; a decline is detected at 62, but that does not establish equal power at 65.' else 'The employment evidence is mixed; see Check 3.'` `r if(all(balance$p_holm>=.05) && all(response$p_holm>=.05)) 'The covariate and response-rate tests do not reject continuity under the reported specifications.' else 'Some characteristics or response rates shift at 65; see Checks 2 and the response checks.'` Doctor-visit patterns aligned with coverage gains would be consistent with improved access; hospital patterns may also reflect coverage generosity. Neither pattern alone separates insurance and retirement causally. These checks support the continuity assumption but cannot prove it.
 
 </div>
 
@@ -533,7 +524,7 @@ These checks support continuity but cannot prove it. Three things remain assumpt
 
 - **Unobserved characteristics are smooth at 65.** Balance in sex, race, education and region does not guarantee balance in, for example, health status or income.
 - **No other age-65 channel.** Flat employment does not rule out small retirement effects, offsetting flows, or pension and income changes among people already retired.
-- **Missing answers are not selective.** Smooth response rates show that the samples form in the same way on each side. They cannot show that the people who did not answer would have answered similarly.
+- **Missing answers are not selective.** Nonrejection of response-rate discontinuities does not establish identical selection processes or identify the composition and outcomes of nonrespondents.
 
 ### SUTVA and interference
 
@@ -545,7 +536,7 @@ SUTVA cannot be directly verified with these data. Observing a respondent's insu
 
 - **Specification:** local linear, `r H`-year main bandwidth, alternatives of `r paste(setdiff(H_alt,H),collapse=', ')` years, triangular kernel times the supplied survey weights, survey-year fixed effects, HC1 standard errors with normal critical values (shared through `rd_functions.R`).
 - **Samples:** each outcome uses its own sample. Subgroup comparisons use the matched samples built by `subgroup_sample()`.
-- **Subgroup prediction:** outcome jumps should be largest for `r lab(top)` and smallest for `r lab(bottom)`, following the coverage gain at 65. The Medicare-jump ranking is a secondary comparison.
+- **Exploratory doctor-visit hypothesis:** larger jumps for `r lab(top)` and smallest for `r lab(bottom)`, would be consistent with the coverage-gain mechanism. No common ordering is imposed on hospital stays; coverage generosity may also matter.
 - **Donut RD:** drop the potentially misclassified 65.00 cell. A wider donut (64.75–65.25) addresses people delaying care until 65.
 
 ```{r export}

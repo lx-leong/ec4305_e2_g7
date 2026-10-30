@@ -151,7 +151,7 @@ The hospital sample is larger because it includes `r m2$N-m1$N` respondents who 
 
 ## Identification evidence
 
-The identification report checks the design before estimation. Covariates and response rates are smooth through 65. The employment jump at 65 is `r pct(e$estimate)` pp (95% CI `r ci(e)`; p = `r pv(e$p_value)`). The same test detects a `r pct(c62$estimate)` pp drop at 62 (p = `r pv(c62$p_value)`), where early Social Security claiming begins. This supports the absence of a large retirement change at 65, without ruling out small ones. Quarter-age coding may misclassify eligibility near the threshold, and both outcomes include the preceding 12 months. The donut and exposure checks below assess sensitivity to these features without resolving them completely.
+The identification report finds no statistically significant covariate or response-rate discontinuities under its reported specifications. The employment jump at 65 is `r pct(e$estimate)` pp (95% CI `r ci(e)`; p = `r pv(e$p_value)`). The same test detects a `r pct(c62$estimate)` pp drop at 62 (p = `r pv(c62$p_value)`), where early Social Security claiming begins. The age-62 contrast shows sensitivity to that particular change, not equal power or absence of retirement changes at 65. Quarter-age coding may misclassify eligibility near the threshold, and both outcomes include the preceding 12 months. The donut and exposure checks below assess sensitivity to these features without resolving them completely.
 
 # Graphical evidence
 
@@ -312,9 +312,9 @@ cat(knitr::kable(all_tab,align=c('l','l',rep('r',8)),row.names=FALSE),sep='\n')
 
 ## The prediction
 
-The identification report states a prediction before any outcome is estimated. Medicare should raise healthcare use mainly for **gainers**, people who were uninsured before 65. **Switchers** already had insurance and move onto Medicare, so their use should change much less. If Medicare's insurance gain drives the effect, outcome jumps should be largest in the groups where any coverage rises most at 65. If retirement drove the effect, outcome jumps should instead follow the employment drops.
+For doctor visits, we explore whether larger net gains in any insurance accompany larger utilisation increases. This pattern would be consistent with improved access among previously uninsured respondents, but is not a necessary implication of an insurance effect. For hospital stays, previously insured respondents may also respond to more generous coverage or changes in procedure costs. We therefore do not impose the doctor-visit ordering on hospital stays. Employment comparisons are indirect diagnostics and cannot by themselves separate retirement from insurance channels.
 
-We test this across four race-by-education groups: White non-Hispanic or other race/ethnicity, crossed with below-high-school or higher education. Respondents with missing education are not assigned to a group, but remain in the pooled estimates.
+The four groups combine race/ethnicity and observed education. Respondents with missing education remain in the pooled estimates but are excluded from these subgroup comparisons. The comparisons are exploratory, not preregistered causal tests.
 
 ## Matched samples
 
@@ -360,7 +360,7 @@ cat(knitr::kable(data.frame(Outcome=unname(rd_labels[sg$outcome]),Group=sg$label
   align='llrrrrrr',row.names=FALSE),sep='\n')
 ```
 
-```{r subgroup-plot, fig.width=10, fig.height=9, fig.cap='Outcome jumps by group, with 95% confidence intervals, against the coverage gain at 65 (left) and the employment jump at 65 (right). Under the insurance prediction, points rise from left to right in the left panels.'}
+```{r subgroup-plot, fig.width=10, fig.height=9, fig.cap='Outcome jumps by group, with 95% confidence intervals, against the coverage gain at 65 (left) and the employment jump at 65 (right). A positive doctor-visit relationship is consistent with the access hypothesis; no such ordering is required for hospital stays.'}
 scatter <- function(z,x,xlab,main) {
   plot(100*x,100*z$out_jump,ylim=range(0,100*c(z$out_lo,z$out_hi)),xlim=range(100*x)+c(-3,4),
        pch=19,col='#176d85',xlab=xlab,ylab='Outcome jump at 65 (pp)',main=main,bty='l',
@@ -380,7 +380,7 @@ par(mfrow=c(1,1))
 
 ## Does the pattern follow the prediction?
 
-The rank correlations describe how closely the ordering of outcome jumps matches each measure, from -1 (reversed) to 1 (identical). With four groups they are descriptive, not tests. The contrast compares the groups with the largest and smallest coverage gains, which the identification report named before estimation. Its standard error treats the disjoint groups as independent.
+The rank correlations describe how closely the ordering of outcome jumps matches each measure, from -1 (reversed) to 1 (identical). With four groups they are descriptive, not tests. The exploratory contrast compares the groups with the largest and smallest estimated coverage gains. It is an access-channel comparison for doctor visits and a descriptive contrast for hospital stays. Its standard error treats the disjoint groups as independent.
 
 ```{r agree-table, results='asis'}
 cat(knitr::kable(data.frame(Outcome=unname(rd_labels[agree$outcome]),
@@ -393,11 +393,11 @@ cat(knitr::kable(data.frame(Outcome=unname(rd_labels[agree$outcome]),
 
 <div class="finding">
 
-**Doctor visits.** The rank correlation between outcome jumps and coverage gains is **`r sprintf('%.2f',a1$rho_cov)`**, against `r sprintf('%.2f',a1$rho_emp)` for employment drops. `r if(a1$rho_mcare<0) paste0('The correlation with the Medicare jump is ',sprintf('%.2f',a1$rho_mcare),', as expected: groups with the largest Medicare jumps are mostly switchers who were already insured.') else ''` `r if(a1$top_is_max && a1$bottom_is_min) paste0('As predicted, the jump is largest for ',lab(top),' and smallest for ',lab(bottom),'.') else 'The largest and smallest jumps are not in the predicted groups.'` The difference between these two groups is `r pct(a1$diff)` pp (95% CI `r sprintf('[%s, %s]',pct(a1$diff_lo),pct(a1$diff_hi))`; p = `r pv(a1$diff_p)`).
+**Doctor visits.** The rank correlation with net coverage gains is **`r sprintf('%.2f',a1$rho_cov)`**, compared with `r sprintf('%.2f',a1$rho_emp)` for employment declines. The contrast between the groups with the largest and smallest coverage gains is `r pct(a1$diff)` pp (95% CI `r sprintf('[%s, %s]',pct(a1$diff_lo),pct(a1$diff_hi))`; p = `r pv(a1$diff_p)`). Alignment with coverage gains would be consistent with improved access, not proof of a specific mechanism.
 
-**Hospital stays.** The rank correlation with coverage gains is `r sprintf('%.2f',a2$rho_cov)`, against `r sprintf('%.2f',a2$rho_emp)` for employment drops. `r if(a2$top_is_max && a2$bottom_is_min) 'The largest and smallest jumps are in the predicted groups.' else if(a2$bottom_is_min) 'The smallest jump is in the predicted group, but the largest is not.' else if(a2$top_is_max) 'The largest jump is in the predicted group, but the smallest is not.' else 'The largest and smallest jumps are not in the predicted groups.'` The predicted contrast is `r pct(a2$diff)` pp (95% CI `r sprintf('[%s, %s]',pct(a2$diff_lo),pct(a2$diff_hi))`; p = `r pv(a2$diff_p)`).
+**Hospital stays.** The corresponding correlations are `r sprintf('%.2f',a2$rho_cov)` with coverage gains and `r sprintf('%.2f',a2$rho_emp)` with employment declines. The same pairwise group contrast is `r pct(a2$diff)` pp (95% CI `r sprintf('[%s, %s]',pct(a2$diff_lo),pct(a2$diff_hi))`; p = `r pv(a2$diff_p)`). This contrast is descriptive: hospital responses need not follow coverage gains because previously insured people can benefit from changes in insurance generosity.
 
-`r if(a1$rho_cov>a1$rho_emp) 'For the primary outcome, the ordering is consistent with the insurance channel rather than retirement.' else 'For the primary outcome, the ordering does not favour the insurance channel over retirement.'` `r if(max(agree$diff_p)>=.05) 'The confidence intervals overlap heavily and the contrasts are not statistically significant, so this is supporting evidence, not a demonstration.' else ''` Four groups cannot separate insurance effects from other group differences, such as how generous coverage is or how sick people are.
+Four estimated group points cannot distinguish insurance, retirement and other heterogeneous responses. These correlations omit uncertainty in both axes; nonrejection of group employment jumps does not establish zero retirement effects.
 
 </div>
 
@@ -419,7 +419,7 @@ sig_rob <- tapply(same$p_value<.05,same$outcome,sum)
 
 **Robustness.** Doctor-visit estimates have the main estimate's sign in `r n_sign['sawdr']` of `r n_rob['sawdr']` alternative specifications, and `r sig_rob['sawdr']` are significant at 5%. Hospital estimates have the main sign in `r n_sign['inhosp']` of `r n_rob['inhosp']`, and `r sig_rob['inhosp']` are significant. `r if(all(pl$p_holm>=.05)) 'No placebo cutoff rejects after adjustment.' else 'Some placebo cutoffs reject after adjustment; see the placebo section.'` These correlated checks are sensitivity summaries, not independent confirmations.
 
-**Interpretation.** Under continuity, a well-defined eligibility policy and the maintained interference assumptions, these discontinuities are local intention-to-treat effects of Medicare eligibility. Employment does not change at 65, and `r if(a1$rho_cov>a1$rho_emp) 'doctor-visit jumps are largest where coverage rises most' else 'the subgroup pattern is inconclusive'`. Together this points to Medicare's insurance gain rather than retirement as the source of the jump, but it cannot rule out small retirement, income or pension effects.
+**Interpretation.** Under continuity, a well-defined eligibility policy and the maintained interference assumptions, these discontinuities are local eligibility ITTs. We do not detect a statistically significant employment discontinuity at 65 under the main specification. Subgroup comparisons provide exploratory evidence about insurance and retirement channels, but do not identify which dominates. Hospital responses need not follow newly gained coverage, and independent pension, income and retirement effects remain possible.
 
 </div>
 
