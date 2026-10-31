@@ -1,0 +1,419 @@
+---
+title: "EC4305: EDA, NHIS 1992–1996"
+author: "EC4305 Group E2 G7"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
+                      fig.align = "center",  out.width = "80%")
+```
+# 1. Setup and data import
+```{r}
+## import libraries 
+library(haven)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r}
+clean_url <- paste0(
+  "https://raw.githubusercontent.com/",
+  "lx-leong/ec4305_e2_g7/main/data/nhis_clean_full.rds"
+)
+
+temp_file <- tempfile(fileext = ".rds")
+
+download.file(clean_url, temp_file, mode = "wb")
+
+df <- readRDS(temp_file)
+
+unlink(temp_file)
+```
+
+
+# 2. Sample checks
+```{r missingness}
+
+# Basic checks on the restricted sample
+table(df$year)
+range(df$age4, na.rm = TRUE)
+
+with(
+  df,
+  table(post65, age4 >= 65, useNA = "ifany")
+)
+
+binary_vars <- c(
+  "post65", "mcare", "covered2", "sawdr",
+  "inhosp", "goodplus", "female",
+  "wnh", "bnh", "hispanic", "onh", "emp"
+)
+
+lapply(df[binary_vars], table, useNA = "ifany")
+
+table(
+  rowSums(df[c("wnh", "bnh", "hispanic", "onh")]),
+  useNA = "ifany"
+)
+
+summary(df$educ)
+table(df$region, useNA = "ifany")
+summary(df$wt)
+
+stopifnot(
+  all(between(df$year, 1992, 1996)),
+  all(is.na(df$sawdr) | df$sawdr %in% c(0, 1)),
+  all(is.na(df$inhosp) | df$inhosp %in% c(0, 1))
+)
+
+```
+
+# 3. Missingness
+```{r}
+# Overall missingness
+key_vars <- c(
+  "age4", "mcare", "covered2", "sawdr", "inhosp",
+  "goodplus", "poor_clean", "female",
+  "wnh", "bnh", "hispanic", "onh",
+  "educ", "lowed_clean", "region", "year", "wt", "emp"
+)
+
+missing_table <- df %>%
+  summarise(
+    across(all_of(key_vars), ~ sum(is.na(.x)))
+  ) %>%
+  pivot_longer(
+    everything(),
+    names_to = "variable",
+    values_to = "n_missing"
+  ) %>%
+  mutate(
+    pct_missing = 100 * n_missing / nrow(df)
+  )
+
+print(missing_table, n = Inf)
+
+# Check the two outcomes separately by year
+outcome_missingness <- df %>%
+  select(year, sawdr, inhosp) %>%
+  pivot_longer(
+    cols = c(sawdr, inhosp),
+    names_to = "outcome",
+    values_to = "value"
+  ) %>%
+  group_by(year, outcome) %>%
+  summarise(
+    n_total = n(),
+    n_missing = sum(is.na(value)),
+    missing_pct = 100 * mean(is.na(value)),
+    .groups = "drop"
+  )
+
+print(outcome_missingness, n = Inf)
+```
+
+# 4. Survey-weighted descriptive statistics
+```{r}
+# Survey-weighted descriptive means and age profiles
+# Counts and missingness diagnostics are unweighted
+eda <- df %>%
+  mutate(
+    sawdr_observed = as.integer(!is.na(sawdr)),
+    inhosp_observed = as.integer(!is.na(inhosp)),
+    side = factor(
+      if_else(age4 < 65, "Below 65", "65 and above"),
+      levels = c("Below 65", "65 and above")
+    ),
+
+    region1 = as.integer(region == 1),
+    region2 = as.integer(region == 2),
+    region3 = as.integer(region == 3),
+    region4 = as.integer(region == 4)
+  )
+
+profile_vars <- c(
+  "mcare", "covered2",
+  "sawdr", "inhosp", "goodplus", "poor_clean",
+  "female", "wnh", "bnh", "hispanic", "onh",
+  "educ", "lowed_clean",
+  "region1", "region2", "region3", "region4",
+  "emp"
+)
+
+# Broad descriptive comparison, not an RD estimate
+descriptive_table <- eda %>%
+  filter(
+    between(age4, 60, 70),
+    !is.na(wt),
+    wt > 0
+  ) %>%
+  select(side, wt, all_of(profile_vars)) %>%
+  pivot_longer(
+    cols = all_of(profile_vars),
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  group_by(variable, side) %>%
+  summarise(
+    n_total = n(),
+    n_observed = sum(!is.na(value)),
+    missing_pct = 100 * mean(is.na(value)),
+
+    mean_value = if (all(is.na(value))) {
+      NA_real_
+    } else {
+      weighted.mean(value, wt, na.rm = TRUE)
+    },
+
+    .groups = "drop"
+  )
+
+
+print(descriptive_table, n = Inf)
+report_labels <- c(
+  mcare = "Medicare coverage (%)",
+  covered2 = "Any insurance coverage (%)",
+  sawdr = "Doctor visit in past year (%)",
+  inhosp = "Overnight hospital stay (%)",
+  goodplus = "Good or better health (%)",
+  female = "Female (%)",
+  educ = "Education, years",
+  lowed_clean = "Below high school (%)",
+  emp = "Employed (%)"
+)
+
+table1 <- descriptive_table %>%
+  filter(variable %in% names(report_labels)) %>%
+  mutate(
+    report_value = if_else(
+      variable == "educ",
+      mean_value,
+      100 * mean_value
+    ),
+    report_value = round(report_value, 1),
+    variable = factor(
+      variable,
+      levels = names(report_labels),
+      labels = unname(report_labels)
+    )
+  ) %>%
+  select(variable, side, report_value) %>%
+  pivot_wider(
+    names_from = side,
+    values_from = report_value
+  ) %>%
+  arrange(variable)
+
+knitr::kable(
+  table1,
+  digits = 1,
+  col.names = c("Variable", "Ages 60–<65", "Ages 65–70"),
+  caption = "Survey-weighted descriptive statistics, NHIS 1992–1996"
+)
+```
+
+# 5. Age profiles around the eligibility cutoff
+```{r}
+# Quarter-year profiles
+age_profiles <- eda %>%
+  filter(!is.na(wt), wt > 0) %>%
+  select(age4, side, wt, all_of(profile_vars)) %>%
+  pivot_longer(
+    cols = all_of(profile_vars),
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value)) %>%
+  group_by(variable, age4, side) %>%
+  summarise(
+    n_observed = n(),
+    mean_value = weighted.mean(value, wt),
+    .groups = "drop"
+  )
+
+profile_labels <- c(
+  mcare = "Medicare coverage",
+  covered2 = "Any insurance",
+  sawdr = "Doctor visit in past year",
+  inhosp = "Overnight hospital stay",
+  goodplus = "Good or better health",
+  poor_clean = "Poor health",
+  female = "Female",
+  wnh = "White non-Hispanic",
+  bnh = "Black non-Hispanic",
+  hispanic = "Hispanic",
+  onh = "Other non-Hispanic",
+  educ = "Years of education",
+  lowed_clean = "Below high school",
+  region1 = "Region 1",
+  region2 = "Region 2",
+  region3 = "Region 3",
+  region4 = "Region 4",
+  emp = "Employed"
+)
+
+plot_profiles <- function(vars, title, percentage = TRUE) {
+
+  plot_data <- age_profiles %>%
+    filter(
+      variable %in% vars,
+      between(age4, 60, 70)
+    ) %>%
+    mutate(
+      plot_value = mean_value * if (percentage) 100 else 1
+    )
+
+  ggplot(
+    plot_data,
+    aes(age4, plot_value, colour = side, group = side)
+  ) +
+    geom_point(size = 1.3) +
+    geom_line() +
+    geom_vline(xintercept = 65, linetype = "dashed") +
+    facet_wrap(
+      ~ variable,
+      scales = "free_y",
+      labeller = as_labeller(profile_labels)
+    ) +
+    labs(
+      title = paste0(title, " (1992–1996)"),
+      x = "Age in years",
+      y = if (percentage) {
+  "Survey-weighted percentage"
+} else {
+  "Survey-weighted mean"
+},
+
+caption = paste(
+  "1992–1996; annual person weights (wt).",
+  "Variable-specific observed samples.",
+  "Connected age-cell means, not fitted RD effects."
+)
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+}
+
+plots <- list(
+  coverage = plot_profiles(
+    c("mcare", "covered2"),
+    "Insurance coverage around age 65"
+  ),
+
+  utilisation = plot_profiles(
+    c("sawdr", "inhosp"),
+    "Healthcare utilisation around age 65"
+  ),
+
+  health = plot_profiles(
+    c("goodplus", "poor_clean"),
+    "Self-rated health around age 65"
+  ),
+
+  demographics = plot_profiles(
+    c("female", "wnh", "bnh", "hispanic", "onh"),
+    "Demographic composition around age 65"
+  ),
+
+  education = plot_profiles(
+    c("educ"),
+    "Education around age 65",
+    percentage = FALSE
+  ),
+
+  low_education = plot_profiles(
+    "lowed_clean",
+    "Below-high-school share around age 65"
+  ),
+
+  region = plot_profiles(
+    c("region1", "region2", "region3", "region4"),
+    "Regional composition around age 65"
+  ),
+
+  employment = plot_profiles(
+    "emp",
+    "Employment around age 65"
+  )
+)
+
+for (p in plots) {
+  print(p)
+}
+```
+
+# 6. Outcome availability around age 65
+```{r}
+## response availability and age cell counts 
+# Response availability around 65
+response_profiles <- eda %>%
+  filter(between(age4, 60, 70)) %>%
+  select(
+    age4, side,
+    sawdr_observed, inhosp_observed
+  ) %>%
+  pivot_longer(
+    cols = c(sawdr_observed, inhosp_observed),
+    names_to = "outcome",
+    values_to = "observed"
+  ) %>%
+  group_by(outcome, age4, side) %>%
+  summarise(
+    n_total = n(),
+    observed_pct = 100 * mean(observed),
+    .groups = "drop"
+  )
+
+p_response <- ggplot(
+  response_profiles,
+  aes(age4, observed_pct, colour = side, group = side)
+) +
+  geom_point() +
+  geom_line() +
+  geom_vline(xintercept = 65, linetype = "dashed") +
+  facet_wrap(
+    ~ outcome,
+    scales = "free_y",
+    labeller = as_labeller(c(
+      sawdr_observed = "Doctor-visit response available",
+      inhosp_observed = "Hospital response available"
+    ))
+  ) +
+  labs(
+    title = "Outcome availability around age 65: 1992–1996",
+    x = "Age in years",
+    y = "Observed outcome (%)",
+    colour = NULL,
+    caption = "Denominator includes missing outcomes; formal RD check pending."
+  ) +
+  theme_minimal()
+
+p_response
+```
+
+# 7. Sample size by age
+``` {r}
+# Number of respondents at each quarter-year age
+age_counts <- df %>%
+  count(age4, name = "n")
+
+p_age_counts <- ggplot(age_counts, aes(age4, n)) +
+  geom_col(width = 0.20, fill = "steelblue") +
+  geom_vline(xintercept = 65, linetype = "dashed") +
+  labs(
+    title = "Sample size by quarter-year age: 1992–1996",
+    x = "Age in years",
+    y = "Number of respondents"
+  ) +
+  theme_minimal()
+
+p_age_counts
+```
+
