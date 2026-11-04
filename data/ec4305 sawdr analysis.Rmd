@@ -1,0 +1,467 @@
+---
+title: "EC4305: sawdr Missingness and Coding Audit"
+author: "EC4305 Group E2 G7"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
+                      fig.align = "center",  out.width = "80%")
+```
+
+
+```{r}
+## load libraries 
+library(haven)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+```
+# 1. Purpose
+
+This file examines missing doctor-visit outcomes in the original
+1992–2003 dataset and audits the omission of positive-visit categories
+from the 2000–2003 coding. It documents the correction separately
+from the main 1992–1996 analysis.
+```{r}
+## read data 
+df_raw <- read_sas("https://raw.githubusercontent.com/lx-leong/ec4305_e2_g7/main/data/c9203.sas7bdat")
+```
+
+```{r}
+names(df_raw) <- tolower(names(df_raw))
+
+df_raw <- df_raw %>%
+  mutate(across(everything(), as.numeric))
+
+stopifnot(
+  nrow(df_raw) == 160821L,
+  !anyNA(df_raw$year),
+  all(df_raw$year %in% 1992:2003)
+)
+github_data <- paste0(
+  "https://raw.githubusercontent.com/",
+  "lx-leong/ec4305_e2_g7/main/data/"
+)
+zip_filename <- "NHIS_raw.zip"
+
+zip_url <- paste0(
+  github_data,
+  URLencode(zip_filename, reserved = TRUE)
+)
+
+zip_path <- tempfile(fileext = ".zip")
+
+download.file(
+  zip_url,
+  zip_path,
+  mode = "wb"
+)
+
+# Extract raw survey files into a temporary folder
+extract_folder <- tempfile("nhis_raw_")
+dir.create(extract_folder)
+
+unzip(
+  zip_path,
+  exdir = extract_folder
+)
+
+raw_folder <- file.path(extract_folder, "NHIS_raw")
+
+stopifnot(dir.exists(raw_folder))
+
+output_folder <- file.path("output", "sawdr_audit")
+
+dir.create(
+  output_folder,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+```
+# 2. Original doctor-visit missingness, 1992–2003
+```{r}
+survey_audit <- df_raw %>%
+  group_by(year) %>%
+  summarise(
+    n_total = n(),
+    sawdr_missing_n = sum(is.na(sawdr)),
+    sawdr_missing_pct = 100 * mean(is.na(sawdr)),
+    .groups = "drop"
+  )
+
+print(survey_audit, n = Inf)
+```
+
+```{r}
+p_original_missingness <- ggplot(
+  survey_audit,
+  aes(year, sawdr_missing_pct)
+) +
+  geom_point() +
+  geom_line() +
+  geom_vline(xintercept = 1996.5, linetype = "dashed") +
+  scale_x_continuous(breaks = 1992:2003) +
+  labs(
+    title = "Doctor-visit missingness in the original dataset",
+    x = "Survey year",
+    y = "Missing doctor-visit outcome (%)",
+    caption = paste(
+      "Before correcting the 2000–2003 coding omission.",
+      "Percentages are unweighted."
+    )
+  ) +
+  theme_minimal()
+
+p_original_missingness
+```
+
+# 3. Reconstructing the 2000–2003 coding
+We reconstruct the original doctor-visit indicator from the raw files,
+then include positive-visit categories 6–8 in the corrected indicator.
+Unknown responses remain missing.
+```{r}
+# Starting positions of the two-character visit category
+visit_positions <- c(
+  "2000" = 703,
+  "2001" = 763,
+  "2002" = 742,
+  "2003" = 725
+)
+
+find_dat <- function(survey_year, filename) {
+
+  paths <- list.files(
+    file.path(raw_folder, as.character(survey_year)),
+    recursive = TRUE,
+    full.names = TRUE
+  )
+
+  matched <- paths[
+    tolower(basename(paths)) == tolower(filename)
+  ]
+
+  if (length(matched) != 1L) {
+    stop(
+      "Expected exactly one ", filename,
+      " for ", survey_year,
+      "; found ", length(matched)
+    )
+  }
+
+  matched
+}
+
+# Read fields as text to preserve leading zeros in identifiers
+read_fields <- function(path, positions) {
+
+  starts <- vapply(positions, function(x) x[1], numeric(1))
+  ends <- vapply(positions, function(x) x[2], numeric(1))
+  column_order <- order(starts)
+
+  result <- read_fwf(
+    path,
+    col_positions = fwf_positions(
+      start = starts[column_order],
+      end = ends[column_order],
+      col_names = names(positions)[column_order]
+    ),
+    col_types = cols(.default = col_character()),
+    trim_ws = TRUE,
+    show_col_types = FALSE,
+    progress = FALSE
+  )
+
+  if (nrow(problems(result)) > 0) {
+    stop("Parsing problems in: ", path)
+  }
+
+  result
+}
+
+```
+
+```{r}
+audit_year <- function(survey_year) {
+
+  visit_start <- unname(
+    visit_positions[as.character(survey_year)]
+  )
+
+  person <- read_fields(
+    find_dat(survey_year, "PERSONSX.DAT"),
+    list(
+      record_type = c(1, 2),
+      year = c(3, 6),
+      hhx = c(7, 12),
+      fmx = c(13, 14),
+      px = c(15, 16),
+      intv_qrt = c(17, 17),
+      sex = c(18, 18),
+      age = c(19, 20),
+      dob_m = c(23, 24),
+      dob_y = c(25, 28)
+    )
+  ) %>%
+    mutate(
+      across(
+        c(year, intv_qrt, sex, age, dob_m, dob_y),
+        ~ as.numeric(.x)
+      )
+    )
+
+  adult <- read_fields(
+    find_dat(survey_year, "SAMADULT.DAT"),
+    list(
+      record_type = c(1, 2),
+      year = c(3, 6),
+      hhx = c(7, 12),
+      fmx = c(13, 14),
+      px = c(15, 16),
+      ahcnoyr2 = c(visit_start, visit_start + 1)
+    )
+  ) %>%
+    mutate(
+      across(c(year, ahcnoyr2), ~ as.numeric(.x))
+    )
+
+  keys <- c("year", "hhx", "fmx", "px")
+  stopifnot(
+    all(person$year == survey_year),
+    all(adult$year == survey_year),
+    all(person$record_type == "20"),
+    all(adult$record_type == "30"),
+    !anyNA(person[keys]),
+    !anyNA(adult[keys]),
+    !anyDuplicated(person[keys]),
+    !anyDuplicated(adult[keys]),
+    all(
+      is.na(adult$ahcnoyr2) |
+        adult$ahcnoyr2 %in% c(0:8, 97:99)
+    ),
+    nrow(anti_join(adult, person, by = keys)) == 0
+  )
+
+  adult <- adult %>%
+    select(-record_type) %>%
+    mutate(sample_adult_linked = TRUE)
+
+  person %>%
+    left_join(adult, by = keys) %>%
+    mutate(
+      sample_adult_linked = replace_na(
+        sample_adult_linked, FALSE
+      ),
+
+      birth_month = if_else(
+        dob_m %in% 1:12, dob_m, NA_real_
+      ),
+
+      birth_year = if_else(
+        dob_y <= year, dob_y, NA_real_
+      ),
+
+      birth_quarter = ceiling(birth_month / 3),
+
+      age4 = (
+        4 * (year - birth_year) +
+          intv_qrt - birth_quarter
+      ) / 4,
+
+      female = sex - 1,
+
+      # Reproduce the supplied construction
+      sawdr_original = case_when(
+        ahcnoyr2 == 0 ~ 0,
+        ahcnoyr2 %in% 1:5 ~ 1,
+        TRUE ~ NA_real_
+      ),
+
+      # Restore all observed positive-visit categories
+      sawdr_corrected = case_when(
+        ahcnoyr2 == 0 ~ 0,
+        ahcnoyr2 %in% 1:8 ~ 1,
+        TRUE ~ NA_real_
+      ),
+
+      sawdr_recovered = as.integer(
+        ahcnoyr2 %in% 6:8
+      )
+    ) %>%
+    filter(
+      between(age, 50, 75),
+      age4 > 55,
+      age4 < 75
+    )
+}
+
+# Audit data only
+later_audit <- bind_rows(
+  lapply(2000:2003, audit_year)
+)
+``` 
+# 4. Validating the reconstruction
+
+The processed dataset does not retain the original person identifiers.
+Therefore, we compare joint distributions of year, age, quarter-year
+age, sex and the original doctor-visit indicator. This is not an
+individual-level record match.
+``` {r}
+# Check that the original construction reproduces the joint
+# distribution of these variables in the supplied extract.
+# This is a distribution check, not an ID-level comparison,
+# because the processed extract does not retain the original IDs.
+validation_vars <- c(
+  "year", "age", "age4", "female", "sawdr"
+)
+
+rebuilt_counts <- later_audit %>%
+  mutate(sawdr = sawdr_original) %>%
+  count(
+    across(all_of(validation_vars)),
+    name = "n_rebuilt"
+  )
+
+reference_counts <- df_raw %>%
+  filter(between(year, 2000, 2003)) %>%
+  count(
+    across(all_of(validation_vars)),
+    name = "n_reference"
+  )
+
+validation <- full_join(
+  rebuilt_counts,
+  reference_counts,
+  by = validation_vars
+) %>%
+  mutate(
+    n_rebuilt = replace_na(n_rebuilt, 0L),
+    n_reference = replace_na(n_reference, 0L)
+  )
+
+stopifnot(
+  all(validation$n_rebuilt == validation$n_reference)
+)
+
+```
+
+
+# 5. Correction results
+
+These are unweighted counts. Remaining missing outcomes are separated
+into respondents without a linked Sample Adult record and respondents
+with a linked record but an unknown visit response.
+```{r}
+
+# Show the number of responses restored
+correction_audit <- later_audit %>%
+  group_by(year) %>%
+  summarise(
+    n_persons = n(),
+    missing_before = sum(is.na(sawdr_original)),
+    responses_recovered = sum(sawdr_recovered),
+    missing_after = sum(is.na(sawdr_corrected)),
+    missing_pct_before = 100 * mean(is.na(sawdr_original)),
+    missing_pct_after = 100 * mean(is.na(sawdr_corrected)),
+    no_sample_adult_record = sum(!sample_adult_linked),
+    linked_but_missing_response = sum(
+      sample_adult_linked & is.na(sawdr_corrected)
+    ),
+    .groups = "drop"
+  )
+
+
+# Verify that the missingness accounting adds up
+stopifnot(
+  all(
+    correction_audit$missing_before -
+      correction_audit$responses_recovered ==
+      correction_audit$missing_after
+  ),
+  all(
+    correction_audit$no_sample_adult_record +
+      correction_audit$linked_but_missing_response ==
+      correction_audit$missing_after
+  )
+)
+
+print(correction_audit, n = Inf, width = Inf)
+
+knitr::kable(
+  correction_audit %>%
+    select(
+      year, n_persons, missing_before,
+      responses_recovered, missing_after
+    ),
+  caption = "Doctor-visit coding correction, 2000–2003"
+)
+
+cat(
+  "Total positive-visit responses restored:",
+  sum(correction_audit$responses_recovered),
+  "\n"
+)
+```
+
+
+# 6. Implications for the main analysis
+
+Including categories 6–8 restores positive doctor-visit responses that
+were missing under the original coding. It does not recover responses
+for respondents without linked Sample Adult data or with unknown
+visit responses.
+
+The correction does not resolve the changes in survey collection or
+the later-period weighting question. Our main analysis therefore uses
+1992–1996, while this file documents the later-period coding issue
+separately. The audit does not modify the main cleaned dataset.
+
+# 7. Save audit outputs
+
+```{r save-outputs}
+write.csv(
+  survey_audit,
+  file.path(output_folder, "original_missingness.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  correction_audit,
+  file.path(output_folder, "correction_audit.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  validation,
+  file.path(output_folder, "distribution_validation.csv"),
+  row.names = FALSE
+)
+
+ggsave(
+  filename = file.path(
+    output_folder,
+    "original_sawdr_missingness.png"
+  ),
+  plot = p_original_missingness,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+
+capture.output(
+  sessionInfo(),
+  file = file.path(output_folder, "R_session_info.txt")
+)
+
+# Remove temporary downloads and extracted files
+unlink(extract_folder, recursive = TRUE)
+unlink(zip_path)
+
+normalizePath(output_folder)
+```
