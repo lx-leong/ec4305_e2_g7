@@ -37,8 +37,6 @@
 "inhosp Placebo at 64","inhosp","inhosp, age4, year, wt",2,64,0,1,TRUE,TRUE,37066,10070,6407,3663,62.25,64.75
 "inhosp Placebo at 66","inhosp","inhosp, age4, year, wt",2,66,0,1,TRUE,TRUE,32762,10064,2777,7287,65.25,67.75
 "inhosp Placebo at 67","inhosp","inhosp, age4, year, wt",2,67,0,1,TRUE,TRUE,32762,13586,6470,7116,65.25,68.75
-"Employment at 65","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
-"Employment at 62","emp","emp, age4, year, wt",2,62,0,1,TRUE,TRUE,70751,13833,6416,7417,60.25,63.75
 "sawdr","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,34972,17231,17741,60.25,69.75
 "inhosp","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
 "Subgroup 1 sawdr coverage","covered2","covered2, age4, year, wt",5,65,0,1,TRUE,TRUE,37822,18796,9364,9432,60.25,69.75
