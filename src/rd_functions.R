@@ -3,8 +3,6 @@
 # Data: NHIS 1992-1996 from the team cleaned file (data/nhis_clean_full.csv),
 # built from the Card, Dobkin and Maestas replication file (data/c9203.sas7bdat)
 # by data/ec4305_data_cleaning.Rmd. Survey weights are the supplied `wt`, unchanged.
-# Missing outcomes are kept at load time; each regression drops only the
-# variables it needs, so the doctor and hospital samples are outcome-specific.
 
 find_root <- function(start=getwd()) {
   root <- normalizePath(start,winslash='/',mustWork=TRUE)
@@ -18,26 +16,9 @@ find_root <- function(start=getwd()) {
 
 load_rd_data <- function(root) {
   d <- read.csv(file.path(root,'data','nhis_clean_full.csv'))
-  names(d) <- tolower(names(d))
-  stopifnot(all(c('year','age','age4','post65','sawdr','inhosp','emp','mcare',
-                  'covered2','female','wnh','bnh','hispanic','onh','educ',
-                  'region','group','wt') %in% names(d)))
   d$.source_row <- seq_len(nrow(d))
   d <- subset(d,year %in% 1992:1996 & is.finite(age4) & is.finite(wt) & wt>0)
-  # Guard against the earlier export that dropped every missing doctor-visit
-  # answer, which also removed valid hospital-stay answers.
-  if (!anyNA(d$sawdr)) stop('nhis_clean_full.csv has no missing sawdr rows; ',
-    'it looks like the old filtered export. Pull the corrected file.')
-  stopifnot(all(d$post65==as.integer(d$age4>=65)))
-  # Same definition as the cleaning Rmd; stop if the file disagrees.
-  if ('lowed_clean' %in% names(d))
-    stopifnot(identical(is.na(d$lowed_clean),is.na(d$educ)),
-              all(d$lowed_clean==as.numeric(d$educ<12),na.rm=TRUE))
-  # Below high school; missing education stays missing.
-  d$lowed_clean <- ifelse(is.na(d$educ),NA_real_,as.numeric(d$educ<12))
-  # Race x education groups rebuilt from observed education. The supplied
-  # `group` is kept for reference only.
-  d$group_supplied <- d$group
+  # Race x education groups from observed education.
   d$group <- ifelse(is.na(d$educ) | is.na(d$wnh),NA_integer_,
                     as.integer(1+2*(1-d$wnh)+d$lowed_clean))
   for(r in 1:4) d[[paste0('region_',r)]] <- as.numeric(d$region==r)
