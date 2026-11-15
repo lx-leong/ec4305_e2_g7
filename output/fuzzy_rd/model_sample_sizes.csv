@@ -1,0 +1,99 @@
+"label","outcome","required_variables","h","cutoff","donut","polynomial","year_FE","survey_weighted","N_input","N_used","n_left","n_right","age_min","age_max"
+"Main sawdr reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Main sawdr first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Main inhosp reduced form","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"Main inhosp first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"IV balance female","female","female, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance wnh","wnh","wnh, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance bnh","bnh","bnh, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance hispanic","hispanic","hispanic, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance onh","onh","onh, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance educ","educ","educ, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32490,15922,16568,60.25,69.75
+"IV balance lowed_clean","lowed_clean","lowed_clean, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32490,15922,16568,60.25,69.75
+"IV balance region_1","region_1","region_1, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance region_2","region_2","region_2, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance region_3","region_3","region_3, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"IV balance region_4","region_4","region_4, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Year composition year1993","year1993","year1993, age4, year, wt",5,65,0,1,FALSE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Year composition year1994","year1994","year1994, age4, year, wt",5,65,0,1,FALSE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Year composition year1995","year1995","year1995, age4, year, wt",5,65,0,1,FALSE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Year composition year1996","year1996","year1996, age4, year, wt",5,65,0,1,FALSE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Joint doctor and Medicare response","included_primary","included_primary, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Employment, doctor IV sample","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Bandwidth sawdr 3 reduced form","sawdr","sawdr, age4, year, wt",3,65,0,1,TRUE,TRUE,65158,19403,9242,10161,62.25,67.75
+"Bandwidth sawdr 3 first stage","mcare","mcare, age4, year, wt",3,65,0,1,TRUE,TRUE,65158,19403,9242,10161,62.25,67.75
+"Bandwidth sawdr 4 reduced form","sawdr","sawdr, age4, year, wt",4,65,0,1,TRUE,TRUE,65158,26030,12600,13430,61.25,68.75
+"Bandwidth sawdr 4 first stage","mcare","mcare, age4, year, wt",4,65,0,1,TRUE,TRUE,65158,26030,12600,13430,61.25,68.75
+"Bandwidth sawdr 5 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Bandwidth sawdr 5 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Bandwidth sawdr 6 reduced form","sawdr","sawdr, age4, year, wt",6,65,0,1,TRUE,TRUE,65158,39375,19431,19944,59.25,70.75
+"Bandwidth sawdr 6 first stage","mcare","mcare, age4, year, wt",6,65,0,1,TRUE,TRUE,65158,39375,19431,19944,59.25,70.75
+"Bandwidth sawdr 7 reduced form","sawdr","sawdr, age4, year, wt",7,65,0,1,TRUE,TRUE,65158,45831,22854,22977,58.25,71.75
+"Bandwidth sawdr 7 first stage","mcare","mcare, age4, year, wt",7,65,0,1,TRUE,TRUE,65158,45831,22854,22977,58.25,71.75
+"Bandwidth inhosp 3 reduced form","inhosp","inhosp, age4, year, wt",3,65,0,1,TRUE,TRUE,66010,19649,9351,10298,62.25,67.75
+"Bandwidth inhosp 3 first stage","mcare","mcare, age4, year, wt",3,65,0,1,TRUE,TRUE,66010,19649,9351,10298,62.25,67.75
+"Bandwidth inhosp 4 reduced form","inhosp","inhosp, age4, year, wt",4,65,0,1,TRUE,TRUE,66010,26356,12750,13606,61.25,68.75
+"Bandwidth inhosp 4 first stage","mcare","mcare, age4, year, wt",4,65,0,1,TRUE,TRUE,66010,26356,12750,13606,61.25,68.75
+"Bandwidth inhosp 5 reduced form","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"Bandwidth inhosp 5 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"Bandwidth inhosp 6 reduced form","inhosp","inhosp, age4, year, wt",6,65,0,1,TRUE,TRUE,66010,39865,19678,20187,59.25,70.75
+"Bandwidth inhosp 6 first stage","mcare","mcare, age4, year, wt",6,65,0,1,TRUE,TRUE,66010,39865,19678,20187,59.25,70.75
+"Bandwidth inhosp 7 reduced form","inhosp","inhosp, age4, year, wt",7,65,0,1,TRUE,TRUE,66010,46409,23166,23243,58.25,71.75
+"Bandwidth inhosp 7 first stage","mcare","mcare, age4, year, wt",7,65,0,1,TRUE,TRUE,66010,46409,23166,23243,58.25,71.75
+"Spec quadratic reduced form","sawdr","sawdr, age4, year, wt",5,65,0,2,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Spec quadratic first stage","mcare","mcare, age4, year, wt",5,65,0,2,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Spec control sample reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,64702,32490,15922,16568,60.25,69.75
+"Spec control sample first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,64702,32490,15922,16568,60.25,69.75
+"Spec controls reduced form","sawdr","sawdr, age4, year, wt, female, bnh, hispanic, onh, educ, region_1, region_2, region_3",5,65,0,1,TRUE,TRUE,64702,32490,15922,16568,60.25,69.75
+"Spec controls first stage","mcare","mcare, age4, year, wt, female, bnh, hispanic, onh, educ, region_1, region_2, region_3",5,65,0,1,TRUE,TRUE,64702,32490,15922,16568,60.25,69.75
+"Spec unweighted reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,FALSE,65158,32709,16027,16682,60.25,69.75
+"Spec unweighted first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,FALSE,65158,32709,16027,16682,60.25,69.75
+"Spec donut 65.00 reduced form","sawdr","sawdr, age4, year, wt",5,65,0.25,1,TRUE,TRUE,65158,31865,16027,15838,60.25,69.75
+"Spec donut 65.00 first stage","mcare","mcare, age4, year, wt",5,65,0.25,1,TRUE,TRUE,65158,31865,16027,15838,60.25,69.75
+"Spec donut 64.75-65.25 reduced form","sawdr","sawdr, age4, year, wt",5,65,0.5,1,TRUE,TRUE,65158,30111,15160,14951,60.25,69.75
+"Spec donut 64.75-65.25 first stage","mcare","mcare, age4, year, wt",5,65,0.5,1,TRUE,TRUE,65158,30111,15160,14951,60.25,69.75
+"Spec no year FE reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,FALSE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Spec no year FE first stage","mcare","mcare, age4, year, wt",5,65,0,1,FALSE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Spec NHIS weights reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Spec NHIS weights first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Spec no 1993 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,56288,28275,13911,14364,60.25,69.75
+"Spec no 1993 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,56288,28275,13911,14364,60.25,69.75
+"NHIS weights sawdr reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"NHIS weights sawdr first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"No 1993 sawdr reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,56288,28275,13911,14364,60.25,69.75
+"No 1993 sawdr first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,56288,28275,13911,14364,60.25,69.75
+"NHIS weights inhosp reduced form","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"NHIS weights inhosp first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,66010,33113,16218,16895,60.25,69.75
+"No 1993 inhosp reduced form","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,57061,28642,14083,14559,60.25,69.75
+"No 1993 inhosp first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,57061,28642,14083,14559,60.25,69.75
+"Weight-scale audit: wt reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Weight-scale audit: wt first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Weight-scale audit: wt/5 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Weight-scale audit: wt/5 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Hospital IV: doctor answer also required reduced form","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Hospital IV: doctor answer also required first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,65158,32709,16027,16682,60.25,69.75
+"Comparison: sharp doctor","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,34972,17231,17741,60.25,69.75
+"Comparison: sharp hospital","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Comparison: sharp hospital, doctor answer observed","inhosp","inhosp, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"Comparison: employment, all","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,70751,35513,17496,18017,60.25,69.75
+"Comparison: employment, doctor answer observed","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,69622,34972,17231,17741,60.25,69.75
+"IV-sample placebo sawdr 63","sawdr","sawdr, age4, year, wt",1.5,63,0,1,TRUE,TRUE,33858,9285,4294,4991,61.75,64.25
+"IV-sample placebo inhosp 63","inhosp","inhosp, age4, year, wt",1.5,63,0,1,TRUE,TRUE,34332,9398,4339,5059,61.75,64.25
+"IV-sample placebo sawdr 64","sawdr","sawdr, age4, year, wt",0.99,64,0,1,TRUE,TRUE,33858,5895,2561,3334,63.25,64.75
+"IV-sample placebo inhosp 64","inhosp","inhosp, age4, year, wt",0.99,64,0,1,TRUE,TRUE,34332,5965,2594,3371,63.25,64.75
+"IV-sample placebo sawdr 66","sawdr","sawdr, age4, year, wt",0.99,66,0,1,TRUE,TRUE,30456,5964,2549,3415,65.25,66.75
+"IV-sample placebo inhosp 66","inhosp","inhosp, age4, year, wt",0.99,66,0,1,TRUE,TRUE,30817,6041,2581,3460,65.25,66.75
+"IV-sample placebo sawdr 67","sawdr","sawdr, age4, year, wt",1.5,67,0,1,TRUE,TRUE,30456,9238,4222,5016,65.75,68.25
+"IV-sample placebo inhosp 67","inhosp","inhosp, age4, year, wt",1.5,67,0,1,TRUE,TRUE,30817,9359,4278,5081,65.75,68.25
+"Subgroup 1 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,37837,18803,9370,9433,60.25,69.75
+"Subgroup 1 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,37837,18803,9370,9433,60.25,69.75
+"Subgroup 1 employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,37837,18803,9370,9433,60.25,69.75
+"Subgroup 2 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,12509,6528,2871,3657,60.25,69.75
+"Subgroup 2 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,12509,6528,2871,3657,60.25,69.75
+"Subgroup 2 employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,12509,6528,2871,3657,60.25,69.75
+"Subgroup 3 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,6966,3387,1863,1524,60.25,69.75
+"Subgroup 3 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,6966,3387,1863,1524,60.25,69.75
+"Subgroup 3 employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,6966,3387,1863,1524,60.25,69.75
+"Subgroup 4 reduced form","sawdr","sawdr, age4, year, wt",5,65,0,1,TRUE,TRUE,7390,3772,1818,1954,60.25,69.75
+"Subgroup 4 first stage","mcare","mcare, age4, year, wt",5,65,0,1,TRUE,TRUE,7390,3772,1818,1954,60.25,69.75
+"Subgroup 4 employment","emp","emp, age4, year, wt",5,65,0,1,TRUE,TRUE,7390,3772,1818,1954,60.25,69.75
