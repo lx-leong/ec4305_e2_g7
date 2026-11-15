@@ -70,7 +70,7 @@ covars <- c('female','bnh','hispanic','onh','lowed_clean','region_1','region_2',
 
 # Estimates
 
-Runs the main specification and every robustness/placebo specification for both outcomes, applies Holm adjustments, and defines a table helper.
+Runs the main specification and every robustness/placebo specification for both outcomes, applies Holm adjustments, and defines a table helper. Each outcome uses its full sample (outcome observed; Medicare not required) unless a row says otherwise. The fuzzy RD file runs its own versions of these checks on the Medicare-observed IV samples.
 
 ```{r estimates}
 run <- function(y,check,spec,data=d,...)
@@ -147,7 +147,7 @@ cat(tab('functional form',with_main=TRUE),sep='\n')
 
 ## Covariate adjustment
 
-With and without covariates on the same complete-covariate sample.
+With and without covariates (female, Black, Hispanic, other non-Hispanic, below high school, region dummies) on the same complete-covariate sample. The fuzzy RD file uses years of education instead of below high school.
 
 ```{r covariate-table, results='asis'}
 cat(tab('covariates'),sep='\n')
@@ -155,7 +155,7 @@ cat(tab('covariates'),sep='\n')
 
 ## Donut RD
 
-Drops age cells at and around 65.
+Drops the 65.00 cell (`donut = .25`), or the 64.75, 65.00 and 65.25 cells (`donut = .5`); `fit_rd()` drops cells with |age − 65| < donut.
 
 ```{r donut-table, results='asis'}
 cat(tab('donut',with_main=TRUE),sep='\n')
@@ -179,7 +179,7 @@ cat(tab('weights and years',with_main=TRUE),sep='\n')
 
 ## Fuzzy RD sample
 
-Re-estimates on respondents with Medicare status observed.
+Re-estimates on respondents with Medicare status observed. This row equals the reduced form (numerator) of the fuzzy RD estimate.
 
 ```{r fuzzy-table, results='asis'}
 cat(tab('fuzzy sample',with_main=TRUE),sep='\n')
@@ -187,7 +187,7 @@ cat(tab('fuzzy sample',with_main=TRUE),sep='\n')
 
 ## Placebo cutoffs
 
-Placebo cutoffs at 63, 64, 66 and 67 using one side of 65 only, with Holm p-values across the eight tests.
+Placebo cutoffs at 63, 64, 66 and 67 with ±2-year windows in each outcome's full sample, using only ages below 65 (63, 64) or 65.25 and above (66, 67), with Holm p-values across the eight tests. The fuzzy RD file runs its own placebos in the IV samples with ±1.5-year windows (±0.99 at 64 and 66).
 
 ```{r placebo-table, results='asis'}
 cat(tab('placebo'),sep='\n')
@@ -239,7 +239,7 @@ cat(knitr::kable(all_tab,align=c('l','l',rep('r',8)),row.names=FALSE),sep='\n')
 
 ## Subgroup estimates
 
-Estimates outcome, coverage, Medicare and employment jumps for each of the four race/education groups on matched samples, then computes rank correlations and the largest-minus-smallest coverage-gain group contrast.
+Estimates outcome, coverage, Medicare and employment jumps (±5 years) for each of the four race/education groups on matched samples (outcome, any coverage, Medicare and employment all observed; education observed), then computes rank correlations and the largest-minus-smallest coverage-gain group contrast. The fuzzy RD subgroup samples do not require any coverage, so their counts differ slightly.
 
 ```{r subgroups}
 sg <- do.call(rbind,lapply(outcomes,function(y) {
