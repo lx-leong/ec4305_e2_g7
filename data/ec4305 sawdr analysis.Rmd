@@ -30,7 +30,7 @@ from the 2000–2003 coding. It documents the correction separately
 from the main 1992–1996 analysis.
 ```{r}
 ## read data 
-df_raw <- read_sas("https://raw.githubusercontent.com/lx-leong/ec4305_e2_g7/main/data/c9203.sas7bdat")
+df_raw <- read_sas("c9203.sas7bdat")
 ```
 
 ```{r}
@@ -44,33 +44,10 @@ stopifnot(
   !anyNA(df_raw$year),
   all(df_raw$year %in% 1992:2003)
 )
-github_data <- paste0(
-  "https://raw.githubusercontent.com/",
-  "lx-leong/ec4305_e2_g7/main/data/"
-)
-zip_filename <- "NHIS_raw.zip"
-
-zip_url <- paste0(
-  github_data,
-  URLencode(zip_filename, reserved = TRUE)
-)
-
-zip_path <- tempfile(fileext = ".zip")
-
-download.file(
-  zip_url,
-  zip_path,
-  mode = "wb"
-)
-
-# Extract raw survey files into a temporary folder
 extract_folder <- tempfile("nhis_raw_")
 dir.create(extract_folder)
+unzip("NHIS_raw.zip", exdir = extract_folder)
 
-unzip(
-  zip_path,
-  exdir = extract_folder
-)
 
 raw_folder <- file.path(extract_folder, "NHIS_raw")
 
