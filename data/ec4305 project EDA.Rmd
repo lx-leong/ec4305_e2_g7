@@ -23,18 +23,7 @@ library(ggplot2)
 ```
 
 ```{r}
-clean_url <- paste0(
-  "https://raw.githubusercontent.com/",
-  "lx-leong/ec4305_e2_g7/main/data/nhis_clean_full.rds"
-)
-
-temp_file <- tempfile(fileext = ".rds")
-
-download.file(clean_url, temp_file, mode = "wb")
-
-df <- readRDS(temp_file)
-
-unlink(temp_file)
+df <- read.csv("nhis_clean_full.csv")
 ```
 
 
@@ -357,10 +346,10 @@ response_profiles <- eda %>%
   filter(between(age4, 60, 70)) %>%
   select(
     age4, side,
-    sawdr_observed, inhosp_observed
+    sawdr_observed
   ) %>%
   pivot_longer(
-    cols = c(sawdr_observed, inhosp_observed),
+    cols = c(sawdr_observed),
     names_to = "outcome",
     values_to = "observed"
   ) %>%
@@ -382,8 +371,7 @@ p_response <- ggplot(
     ~ outcome,
     scales = "free_y",
     labeller = as_labeller(c(
-      sawdr_observed = "Doctor-visit response available",
-      inhosp_observed = "Hospital response available"
+      sawdr_observed = "Doctor-visit response available"
     ))
   ) +
   labs(
@@ -391,7 +379,7 @@ p_response <- ggplot(
     x = "Age in years",
     y = "Observed outcome (%)",
     colour = NULL,
-    caption = "Denominator includes missing outcomes; formal RD check pending."
+    caption = "Denominator includes missing outcomes"
   ) +
   theme_minimal()
 
