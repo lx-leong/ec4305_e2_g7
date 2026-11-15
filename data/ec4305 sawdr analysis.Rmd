@@ -2,6 +2,14 @@
 title: "EC4305: sawdr Missingness and Coding Audit"
 author: "EC4305 Group E2 G7"
 date: "`r Sys.Date()`"
+knit: |
+  (function(input, ...) {
+    rmarkdown::render(
+      input,
+      output_dir = file.path(dirname(input), "output", "data_html"),
+      ...
+    )
+  })
 output: 
   html_document:
     toc: true
@@ -436,9 +444,8 @@ capture.output(
   file = file.path(output_folder, "R_session_info.txt")
 )
 
-# Remove temporary downloads and extracted files
+# Remove temporary extracted files
 unlink(extract_folder, recursive = TRUE)
-unlink(zip_path)
 
 normalizePath(output_folder)
 ```
