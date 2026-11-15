@@ -1,4 +1,4 @@
-# Shared functions for the sharp RD analysis.
+# Shared functions for the sharp RD and fuzzy RD analyses.
 #
 # Data: NHIS 1992-1996 from the team cleaned file (data/nhis_clean_full.csv),
 # built from the Card, Dobkin and Maestas replication file (data/c9203.sas7bdat)
@@ -61,8 +61,10 @@ model_samples <- list()
 # donut: drops cells with |age - cutoff| < donut (0.25 drops only the 65.00 cell;
 #        0.5 drops 64.75, 65.00 and 65.25).
 # covars: optional numeric controls; predictions hold them at weighted means.
+# normalise: divide survey weights by their window mean (estimates unchanged;
+#            FALSE is used only by the fuzzy RD weight-scale check).
 fit_rd <- function(d,y,h=5,cutoff=65,donut=0,poly=1,covars=NULL,
-                   weighted=TRUE,year_fe=TRUE,label='') {
+                   weighted=TRUE,year_fe=TRUE,label='',normalise=TRUE) {
   stopifnot(cutoff-h>=55.25,cutoff+h<=74.75)
   vars <- unique(c(y,'age4','year','wt',covars))
   x <- d$age4-cutoff
@@ -72,7 +74,7 @@ fit_rd <- function(d,y,h=5,cutoff=65,donut=0,poly=1,covars=NULL,
   z <- d[complete & window,,drop=FALSE]; z$x <- x[complete & window]
   z$eligible <- as.integer(z$x>=0); z$y <- z[[y]]
   sw <- if(weighted) z$wt else rep(1,nrow(z))
-  z$w <- (1-abs(z$x)/h)*sw/mean(sw)
+  z$w <- (1-abs(z$x)/h)*sw/(if(normalise) mean(sw) else 1)
   trend <- if(poly==1) 'x' else paste0('(',paste(c('x',paste0('I(x^',2:poly,')')),collapse='+'),')')
   rhs <- c(paste0('eligible*',trend),if(year_fe) 'factor(year)',covars)
   f <- lm(as.formula(paste('y ~',paste(rhs,collapse='+'))),data=z,weights=w)
@@ -106,6 +108,44 @@ fit_rd <- function(d,y,h=5,cutoff=65,donut=0,poly=1,covars=NULL,
 }
 
 rd_rows <- function(fits) do.call(rbind,lapply(fits,function(f) f$row))
+
+# Fuzzy RD (local Wald ratio = just-identified IV) with Medicare as the first
+# stage by default. Runs fit_rd() twice on identical respondents (outcome,
+# treatment and controls all observed): the reduced form (jump in y) and the
+# first stage (jump in treatment), so kernel, survey weights, bandwidth, donut,
+# polynomial, controls and year effects match the sharp RD exactly.
+# The ratio's HC1 standard error combines both equations' influence functions,
+# including their covariance. Age-cell clustered (CR1) SEs are also returned.
+fit_fuzzy <- function(d,y,treatment='mcare',h=5,cutoff=65,donut=0,poly=1,covars=NULL,
+                      weighted=TRUE,year_fe=TRUE,normalise=TRUE,label='') {
+  s <- d[complete.cases(d[c(y,treatment,covars)]),,drop=FALSE]
+  lab <- if(nzchar(label)) label else paste('Fuzzy',y)
+  fit <- function(v,part) fit_rd(s,v,h,cutoff,donut,poly,covars,weighted,year_fe,
+                                 label=paste(lab,part),normalise=normalise)
+  rf <- fit(y,'reduced form'); fs <- fit(treatment,'first stage')
+  stopifnot(identical(rf$data$.source_row,fs$data$.source_row))
+  influence <- function(f) {
+    X <- model.matrix(f$model); w <- f$data$w
+    drop(X%*%solve(crossprod(X,X*w))[,'eligible'])*w*residuals(f$model)
+  }
+  iy <- influence(rf); id <- influence(fs)
+  delta <- rf$row$estimate; pi <- fs$row$estimate; tau <- delta/pi
+  it <- (iy-tau*id)/pi
+  z <- rf$data; n <- nrow(z); k <- ncol(model.matrix(rf$model))
+  cells <- c(length(unique(z$x[z$x<0])),length(unique(z$x[z$x>=0])))
+  if(min(cells)<poly+2) stop('Too few distinct age cells for ',y)
+  se <- sqrt(n/(n-k)*sum(it^2))
+  G <- length(unique(z$age4))
+  cse <- sqrt(G/(G-1)*(n-1)/(n-k)*colSums(rowsum(cbind(iy,id,it),z$age4)^2))
+  crit <- qnorm(.975)
+  row <- data.frame(outcome=y,treatment=treatment,bandwidth=h,cutoff=cutoff,donut=donut,poly=poly,
+    first_stage=pi,se_fs=fs$row$se,reduced_form=delta,se_rf=rf$row$se,
+    estimate=tau,se=se,ci_lower=tau-crit*se,ci_upper=tau+crit*se,p_value=2*pnorm(-abs(tau/se)),
+    F=(pi/fs$row$se)^2,cluster_se=unname(cse[3]),cluster_F=unname((pi/cse[2])^2),G=G,
+    cells_left=cells[1],cells_right=cells[2],N=n,n_left=rf$row$n_left,n_right=rf$row$n_right,
+    below_rate=rf$row$below_rate,below_treatment=fs$row$below_rate,year_FE=year_fe)
+  list(row=row,reduced_form=rf,first_stage=fs,data=z)
+}
 
 table_rd <- function(z,name,relative=TRUE) {
   tab <- data.frame(Specification=name,

@@ -52,10 +52,10 @@ img {max-width:100%;}
 
 # Setup
 
-Loads shared functions and data, and sets the bandwidths and outcomes.
+Loads the shared RD functions and data, sets the main bandwidth (±5 years), the alternative bandwidths (3–7 years) and the outcomes, and builds the doctor and hospital samples (outcome answer observed; Medicare not required). These checks never estimate the jump in the outcomes; that is done in the sharp estimation file.
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo=FALSE,message=FALSE,error=FALSE,
+```{r setup, message=FALSE}
+knitr::opts_chunk$set(echo=TRUE,message=FALSE,error=FALSE,
                       fig.width=9,fig.height=5,dpi=160,fig.align='center')
 source('rd_functions.R')
 root <- find_root()
@@ -73,7 +73,7 @@ stopifnot(all(vapply(d[c(balance_vars,'emp','mcare','covered2','sawdr','inhosp')
 
 # Eligibility coding
 
-Compares coded eligibility, whole-year age and Medicare coverage around 65.
+For each quarter-age cell from 64 to 66 (all respondents), tabulates the coded eligibility (`post65`), how many have whole-year age below 65, and weighted Medicare coverage, and counts respondents whose whole-year age and quarter age disagree on eligibility.
 
 ```{r sharp-check}
 cells <- subset(d,age4>=64 & age4<=66)
@@ -83,13 +83,14 @@ sharp <- do.call(rbind,lapply(split(cells,cells$age4),function(v) data.frame(
   `Whole-year age below 65`=format(sum(v$age<65),big.mark=','),
   `Medicare coverage`=sprintf('%.1f%%',100*wmean(v$mcare,v$wt)),check.names=FALSE)))
 age_disagreement <- sum((d$age>=65)!=(d$age4>=65),na.rm=TRUE)
-at65 <- subset(d,age4==65)
 knitr::kable(sharp,align='rrrrr',row.names=FALSE)
 ```
 
+Whole-year age and quarter age disagree on eligibility for `r fmt_n(age_disagreement)` respondents.
+
 # Sample
 
-Builds outcome-specific sample counts and counts hospital responses retained when doctor responses are missing.
+Counts all respondents and the doctor and hospital samples (outcome answer observed), overall and within ±5 years of 65, and counts hospital answers kept even though the doctor answer is missing. The fuzzy RD file counts its own samples, which also require a Medicare answer.
 
 ```{r sample-flow}
 flow <- data.frame(
@@ -111,9 +112,11 @@ Sample sizes and left/right counts within the five-year window.
 cat(knitr::kable(flow,align='llrrrr',row.names=FALSE),sep='\n')
 ```
 
+Within the window, `r fmt_n(restored)` respondents have a hospital answer but no doctor answer; they stay in the hospital sample.
+
 # Response availability
 
-Estimates discontinuities in response indicators and applies Holm adjustment across the four tests.
+Tests whether the chance of each answer being observed (doctor visit, Medicare, any coverage, education) jumps at 65: all respondents, ±5 years, year fixed effects, Holm adjustment across the four tests. The fuzzy RD file adds a joint check that both the doctor and Medicare answers are observed.
 
 ```{r response-checks}
 always <- c(inhosp=all(d$observed_inhosp==1),emp=all(d$observed_emp==1))
@@ -128,9 +131,11 @@ always_text <- if(all(always)) 'Every respondent answered the hospital-stay and 
 cat(table_rd(response,unname(rd_labels[response$outcome]),relative=FALSE),sep='\n')
 ```
 
+`r always_text`
+
 # Age heaping
 
-Calculates the age-65 count relative to four neighbouring cells and the share at whole-year ages.
+Calculates the count in the age-65.00 cell relative to the mean of the four neighbouring cells (64.50, 64.75, 65.25, 65.50), and the share of respondents at whole-year ages, before any outcome is required.
 
 ```{r heaping}
 counts <- table(d$age4)
@@ -138,6 +143,8 @@ near <- counts[names(counts) %in% c('64.5','64.75','65.25','65.5')]
 ratio65 <- as.numeric(counts['65'])/mean(near)
 integer_share <- mean(d$age4==round(d$age4))
 ```
+
+The age-65.00 cell holds `r sprintf('%.2f',ratio65)` times the neighbouring average, and `r pct(integer_share,1)`% of respondents are at whole-year ages.
 
 Plots respondent counts by quarter-year age before outcome selection.
 
@@ -150,7 +157,7 @@ abline(v=65,lty=2,col='#B2182B',lwd=2)
 
 # Covariate balance
 
-Tests eight covariates in each outcome sample and repeats doctor-sample checks across bandwidths.
+Tests eight covariates (female, White, Black, Hispanic, below high school, Northeast, Midwest, South) for a jump at 65 in the doctor and hospital samples (±5 years, year fixed effects), and repeats the doctor-sample tests for bandwidths of 3–7 years. The fuzzy RD file runs its own balance check on eleven covariates in the doctor IV sample, which also requires a Medicare answer.
 
 ```{r balance-fit}
 samples <- list(sawdr=doc,inhosp=hosp)
@@ -216,8 +223,9 @@ for(y in outcomes) {
 index_fits <- list(sawdr=fit_rd(samples$sawdr,'sawdr_index',H,label='Index sawdr'),
                    inhosp=fit_rd(samples$inhosp,'inhosp_index',H,label='Index inhosp'))
 index <- rd_rows(index_fits)
-index_pass <- all(index$p_value>=.05)
 ```
+
+Jumps in the predicted outcomes at 65 (±5 years).
 
 ```{r index-table, results='asis'}
 cat(table_rd(index,unname(rd_labels[index$outcome])),sep='\n')
@@ -234,19 +242,15 @@ par(mfrow=c(1,1))
 
 # Employment
 
-Estimates employment jumps across bandwidths, with a donut, placebo cutoffs and an age-62 comparison. Employment is an indirect retirement measure.
+Estimates employment jumps at 65 in all respondents for bandwidths of 3–7 years, a donut dropping the 65.00 cell (±5 years), placebo cutoffs at 60 and 70 (±2 years), and an age-62 comparison (±2 years). Employment is an indirect retirement measure. The fuzzy RD file also tests employment in the doctor IV sample.
 
 ```{r employment-fit}
 employment <- rd_rows(lapply(H_alt,function(h) fit_rd(d,'emp',h,label=paste('Employment h',h))))
-e <- employment[employment$bandwidth==H,]
-e_doc <- fit_rd(doc,'emp',H,label='Employment, doctor sample')$row
 falsify <- rd_rows(list(fit_rd(d,'emp',H,donut=.25,label='Employment donut'),
                         fit_rd(d,'emp',2,60,label='Employment placebo 60'),
                         fit_rd(d,'emp',2,70,label='Employment placebo 70')))
 control62 <- fit_rd(d,'emp',2,62,label='Employment control 62')
 c62 <- control62$row
-emp_pass <- e$p_value>=.05
-c62_pass <- c62$p_value<.05 && c62$estimate<0
 ```
 
 ## Employment at 65
@@ -280,35 +284,20 @@ Plots employment around early Social Security claiming eligibility.
 plot_rd(d,'emp',2,62,main='Employment around 62',fit=control62)
 ```
 
+Employment jump at 62.
+
 ```{r control62-table, results='asis'}
 cat(table_rd(c62,'Positive control at 62 (+/-2 years)'),sep='\n')
 ```
 
 # Insurance gains by group
 
-Estimates coverage, Medicare and employment jumps on matched samples within each outcome and race/education group. Missing education is excluded; pre-65 rates use ages 63 to under 65.
+Estimates any-coverage, Medicare and employment jumps at 65 (±5 years) within each race × education group, separately for the doctor and hospital samples. Each group sample is matched: the outcome, any coverage, Medicare and employment must all be observed, and missing education is excluded. Pre-65 rates use ages 63 to under 65. The fuzzy RD subgroup samples do not require any coverage, so their counts differ slightly.
 
 ```{r subgroups}
 sub <- do.call(rbind,lapply(outcomes,function(y) subgroup_first_stage(d,y,H)))
 sd <- subset(sub,sample=='sawdr'); sh <- subset(sub,sample=='inhosp')
-ord <- function(s,v,decreasing=TRUE) s$group[order(s[[v]],decreasing=decreasing)]
-lab <- function(g) unname(group_labels[as.character(g)])
-cov_order <- ord(sd,'cov_jump'); unins_order <- ord(sd,'pre_uninsured')
-mcare_order <- ord(sd,'mcare_jump'); emp_order <- ord(sd,'emp_jump',decreasing=FALSE)
-top <- cov_order[1]; bottom <- cov_order[4]; mid <- cov_order[2:3]
-diff_test <- function(s,g1,g2,v='cov') {
-  a <- s[s$group==g1,]; b <- s[s$group==g2,]
-  dd <- a[[paste0(v,'_jump')]]-b[[paste0(v,'_jump')]]
-  se <- sqrt(a[[paste0(v,'_se')]]^2+b[[paste0(v,'_se')]]^2)
-  c(diff=dd,p=2*pnorm(-abs(dd/se)))
-}
-mid_test <- diff_test(sd,mid[1],mid[2])
-ends_agree <- top==unins_order[1] && bottom==unins_order[4]
-hosp_same <- identical(ord(sh,'cov_jump')[c(1,4)],cov_order[c(1,4)])
-overall_mcare <- fit_rd(d,'mcare',H,label='Medicare overall')$row
-overall_cov <- fit_rd(d,'covered2',H,label='Coverage overall')$row
-
-emp_sig <- sd$label[sd$emp_p<.05]
+cov_order <- sd$group[order(sd$cov_jump,decreasing=TRUE)]
 jump_ci <- function(est,lo,hi) sprintf('%s [%s, %s]',pct(est,1),pct(lo,1),pct(hi,1))
 sub_table <- function(s) knitr::kable(data.frame(Group=s$label,N=fmt_n(s$N),
   `N left / right`=n_lr(s),
@@ -322,11 +311,15 @@ sub_table <- function(s) knitr::kable(data.frame(Group=s$label,N=fmt_n(s$N),
 
 ## Doctor-visit sample
 
+Group jumps in the matched doctor-visit samples.
+
 ```{r subgroup-table-doc, results='asis'}
 cat(sub_table(sd),sep='\n')
 ```
 
 ## Hospital-stay sample
+
+Group jumps in the matched hospital-stay samples.
 
 ```{r subgroup-table-hosp, results='asis'}
 cat(sub_table(sh),sep='\n')
@@ -353,6 +346,10 @@ dot(z$emp_jump,z$emp_lo,z$emp_hi,'Employment','#c17948',group_short[as.character
 par(mfrow=c(1,1))
 ```
 
+# Export
+
+Saves all identification estimates, the sample counts, the subgroup table and the model sample log to CSV.
+
 ```{r export}
 add <- function(x,check,sample='all') {x$check <- check; if(!'sample'%in%names(x)) x$sample <- sample
   if(!'p_holm'%in%names(x)) x$p_holm <- NA_real_; x}
@@ -369,9 +366,3 @@ write.csv(flow,file.path(out,'sample_flow.csv'),row.names=FALSE)
 write.csv(sub,file.path(out,'handoff_subgroups.csv'),row.names=FALSE)
 export_models(out)
 ```
-
-## References
-
-Card, D., Dobkin, C. and Maestas, N. (2008). [The Impact of Nearly Universal Insurance Coverage on Health Care Utilization: Evidence from Medicare](https://pmc.ncbi.nlm.nih.gov/articles/PMC2600774/). *American Economic Review*, 98(5), 2242-2258.
-
-Hahn, J., Todd, P. and van der Klaauw, W. (2001). Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design. *Econometrica*, 69(1), 201-209.
