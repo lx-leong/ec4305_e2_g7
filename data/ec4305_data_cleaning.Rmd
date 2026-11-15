@@ -24,7 +24,7 @@ library(ggplot2)
 
 ```{r}
 ## read data 
-df_raw <- read_sas("https://raw.githubusercontent.com/lx-leong/ec4305_e2_g7/main/data/c9203.sas7bdat")
+df_raw <- read_sas("c9203.sas7bdat")
 ```
 
 ```{r}
@@ -160,7 +160,7 @@ print(missing_table, n = Inf)
 ```
 
 ```{r}
-## df using only the key variables and dropped na
+## clean df
 nhis_clean_full <- df %>%
   filter(year < 1997)
 head(nhis_clean_full)
@@ -176,16 +176,5 @@ write.csv(
   row.names = FALSE
 )
 
-# Preserve R variable types, including factors, for the EDA
-saveRDS(
-  nhis_clean_full,
-  "nhis_clean_full.rds"
-)
-
-write.csv(
-  missing_table,
-  "missingness_1992_1996.csv",
-  row.names = FALSE
-)
 ```
 
